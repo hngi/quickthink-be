@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import User
 from rest_framework import serializers
 from rest_framework.authtoken.models import Token
+
 from .models import Game, Question, Options, UserGames, Category
 
 
@@ -38,7 +38,16 @@ class TokenSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = get_user_model()
-        fields = '__all__'
+        fields = ['id', 'email', 'password', 'username']
+
+
+class ResetUserPasswordSerializer(serializers.ModelSerializer):
+    # user need to add current password field in reset user password api so added extra field
+    current_password = serializers.CharField()
+
+    class Meta:
+        model = get_user_model()
+        fields = ['current_password', 'password']
 
 
 class CategorySerializer(serializers.ModelSerializer):

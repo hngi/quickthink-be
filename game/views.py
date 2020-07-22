@@ -1,24 +1,23 @@
+import html
 import random
 
+import requests
 from django.contrib.auth import authenticate, login, get_user_model, logout
 from django.contrib.auth.models import User
-from django.db import transaction
-from django.db.models import F
 from django.http import JsonResponse, HttpResponse
-from django.shortcuts import render
 
 # Create your views here.
-from rest_framework import status
+from rest_framework import status, viewsets
 from rest_framework.authentication import TokenAuthentication
-from rest_framework.decorators import api_view, permission_classes, authentication_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import api_view, permission_classes, authentication_classes, action
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 
 from django.db import IntegrityError
 
 from game.models import Game, Question, UserGames, Options, Category
 from game.serializers import GameSerializer, QuestionSerializer, OptionsSerializer, UserGamesSerializer, \
-    CategorySerializer, UserSerializer
+    CategorySerializer, UserSerializer, ResetUserPasswordSerializer
 
 from rest_framework.authtoken.models import Token
 
@@ -784,10 +783,9 @@ def update_category(request):
     )
 
 @api_view(['POST'])
-#@parser_classes([JSONParser])
 @authentication_classes((TokenAuthentication,))
 def opendb(request):
-    #User Authorization to ensure only user who adds questions can delete/edit them
+    # User Authorization to ensure only user who adds questions can delete/edit them
     token = request.META['HTTP_AUTHORIZATION'].split(' ')
     try:
         user = Token.objects.get(key=token[1]).user
@@ -795,59 +793,360 @@ def opendb(request):
         return JsonResponse(
             {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
         )
-    data = requests.get(url=request.data['url']).json() #takes in data from url and displays json response
-    #print(data) #testing
-    questions_to_serialize = []  #question list
-    optionsList = [] # option list  
-    for option_data in data.get('results', []): #get data starting from 'results' in JSON response (LOOP 1)
-        options = option_data.get('incorrect_answers') 
-    for option in options: #goes through option list (LOOP 2)
-        optionData = Options.objects.filter(option=option)
-        if len(optionData) == 0:
-            option = {  
-                'option': option,    
-            }
-            serializer = OptionsSerializer(data=option, many=False)
-            if serializer.is_valid():
-                serializer.save()
-        else:
-            serializer = OptionsSerializer(optionData[0], many=False)
-        optionsList.append(serializer.data['option'])
-    #gets correct answer and appends it to the end of the options list
-    option = {'option': option_data.get('correct_answer')}
-    serializer_ans = OptionsSerializer(data = option, many = False)
-    if serializer_ans.is_valid():
-        serializer_ans.save()
-    optionsList.append(serializer_ans.data['option'])
-    #print(optionsList)
-    #print(data)   
-     
-
-    #questions
-    for question_data in data.get('results', []):
-        #fixes HTML encoding
-        unescapedquestion = question_data.get('question') 
-        escapedquestion = html.unescape(unescapedquestion)
-        formattedquestion = escapedquestion.replace("\\","")
-        #gets question data
-        QuestionData = {
-            "category": question_data.get('category'),
-            "type": question_data.get('type'),
-            "difficulty": question_data.get('difficulty'),
-            "options": optionsList, #gets options from option list 
-            "question": formattedquestion,  #takes in formated question
-            "user": user.id, #takes in user id
-            "answer": optionsList[3], #sets the last entry as the answer from option list 
-            
+    data = requests.get(url=request.data['url']).json()  # takes in data from url and displays json response
+    questionsList = []  # option list
+    errorList = []
+    for question in data['results']:  # goes through option list (LOOP 2)
+        optionsList = html.unescape(question['incorrect_answers'])
+        optionsList.append(question['correct_answer'])
+        random.shuffle(optionsList)
+        try:
+            index = optionsList.index(question['correct_answer'])
+        except Exception as error:
+            print(error)
+        optionsListData = []
+        for option in optionsList:
+            optionData = Options.objects.filter(option=option)
+            if len(optionData) == 0:
+                option = {
+                    'option': option
+                }
+                serializer = OptionsSerializer(data=option, many=False)
+                if serializer.is_valid():
+                    serializer.save()
+            else:
+                serializer = OptionsSerializer(optionData[0], many=False)
+            optionsListData.append(serializer.data['option'])
+        escapedquestion = question['question']
+        unescapedquestion = html.unescape(escapedquestion).replace("\\","")
+        question = {
+            "question": unescapedquestion,
+            "category": question['category'],
+            "options": optionsListData,
+            "user": user.id,
+            "answer": html.unescape(optionsListData[index])
         }
-        questions_to_serialize.append(QuestionData)
-        #optionsList.clear()
-    serializer = QuestionSerializer(data = questions_to_serialize, many = True)
-    #print(QuestionData)
-    if serializer.is_valid():
-        serializer.save()
-        
+        serializer = QuestionSerializer(data=question)
+        if serializer.is_valid():
+            serializer.save()
+            questionsList.append(serializer.data)
+        else:
+            errorList.append({'error':serializer.errors,'question':html.unescape(question['question'])})
+    if len(errorList) != 0:
         return JsonResponse({
-            "data": serializer.data
-        }, status = status.HTTP_200_OK)
-    return JsonResponse(serializer.errors, safe = False, status=status.HTTP_400_BAD_REQUEST)
+            "data": questionsList,
+            'error': errorList
+        }, status=status.HTTP_200_OK)
+    else:
+        return JsonResponse({
+            "data": questionsList
+        }, status=status.HTTP_200_OK)
+
+class UserAPIs(viewsets.GenericViewSet):
+    """
+        Handling user api that are dont need authentication
+    """
+    serializer_class = UserSerializer
+
+    permission_classes = (AllowAny,)
+
+    @action(detail=False, methods=['post'])
+    def register(self, request):
+        """
+            Registering user
+            User needs to enter username,email,password
+        """
+        if "username" not in request.data:
+            return JsonResponse(
+                {"error": "Enter username"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if "email" not in request.data:
+            return JsonResponse(
+                {"error": "Enter email"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if "password" not in request.data:
+            return JsonResponse(
+                {"error": "Enter password"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        # Validating if the username already exists
+        user = User.objects.filter(username=request.data['username'])
+        if len(user) != 0:
+            return JsonResponse(
+                {"error": "Username already exists"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        # Validating if the email already exists
+        user = User.objects.filter(email=request.data['email'])
+        if len(user) != 0:
+            return JsonResponse(
+                {"error": "Email address already exists"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        # Checking if all the valid fields are entere
+        VALID_USER_FIELDS = [f.name for f in get_user_model()._meta.fields]
+        # Creating user
+        serialized = UserSerializer(data=request.data)
+        if serialized.is_valid():
+            user_data = {field: data for (field, data) in request.data.items() if field in VALID_USER_FIELDS}
+            user = get_user_model().objects.create_user(
+                **user_data
+            )
+            return Response(UserSerializer(instance=user).data, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serialized.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'])
+    def login(self, request):
+        """
+                   Login
+                   User needs to enter username,password
+        """
+        if "username" not in request.data:
+            return JsonResponse(
+                {"error": "Enter user_name"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if "password" not in request.data:
+            return JsonResponse(
+                {"error": "Enter password"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            # Checking  if the user exists using the username and also checking if the user is active
+            # Here the user is inactive if the user deleted his/her account
+            user = User.objects.get(username__exact=request.data['username'], is_active=True)
+            # If the username matches in any of the user doc
+            # checking if the passwords are matching
+            if user is not None and user.check_password(request.data['password']) == True:
+                # deleting the token if the user has already one
+                token = Token.objects.filter(user=user)
+                if len(token) != 0:
+                    token.delete()
+                #  authenticating the user
+                login(request, user)
+                userData = UserSerializer(user).data
+                try:
+                    # creating the token and giving it to user
+                    token = Token.objects.create(user=request.user)
+                    return JsonResponse(
+                        {"token": token.key, "user": userData}, status=status.HTTP_200_OK
+                    )
+                except IntegrityError:
+                    return JsonResponse(
+                        {"error": "User is already logged in"}, status=status.HTTP_400_BAD_REQUEST
+                    )
+            else:
+                return JsonResponse(
+                    {"error": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST
+                )
+        except User.DoesNotExist:
+            return JsonResponse(
+                {"error": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+    @action(detail=False, methods=['put'])
+    def forgot_password(self, request):
+        """
+                          Forgot password
+                          User needs to enter email,password
+               """
+        if "email" not in request.data:
+            return JsonResponse(
+                {"error": "Enter password"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if "password" not in request.data:
+            return JsonResponse(
+                {"error": "Enter password"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            # checking if the user exists with the given email id
+            user = User.objects.get(email=request.data['email'])
+            # setting the password
+            user.set_password(request.data['password'])
+            user.save()
+            return JsonResponse(
+                {"data": UserSerializer(user).data}, status=status.HTTP_200_OK
+            )
+        except User.DoesNotExist:
+            # if the user does not exist
+            return JsonResponse(
+                {"error": "Invalid email address"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as error:
+            return JsonResponse(
+                {"error": error}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+class UserDetailsApi(viewsets.GenericViewSet):
+    """
+       Adding token authentication and permission classes
+       Separated this from user api view since this needs authentication where as the user api dont need it
+    """
+    authentication_classes = [TokenAuthentication]
+    permission_classes = (IsAuthenticated,)
+
+    serializer_class = UserSerializer
+
+    def get_serializer_class(self):
+        # TODO need to have a look if the other way is possible of separating serializers (since here there is only
+        #  one put api it works fine)
+        if self.request.method == 'PUT':
+            # for now we have only one put api i.e reset password api which is accepting password along with current
+            # password
+            return ResetUserPasswordSerializer
+        # for info and delete apis
+        return UserSerializer
+
+    @action(detail=False, methods=['get'])
+    def info(self, request):
+        """
+            Getting current logged in user information
+        """
+        # getting  token from HTTP_AUTHORIZATION and removing the bearer part from it
+        token = request.META['HTTP_AUTHORIZATION'].split(' ')
+        try:
+            # getting user info from token
+            user = Token.objects.get(key=token[1]).user
+            # the user info here is  retreived from token
+            return JsonResponse(
+                {"data": UserSerializer(user).data}, status=status.HTTP_200_OK
+            )
+        except Token.DoesNotExist:
+            # if this is not a valid token
+            return JsonResponse(
+                {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
+            )
+        except Exception as error:
+            return JsonResponse(
+                {"error": error}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+    @action(detail=False, methods=['delete'])
+    def delete(self, request):
+        """
+            For deleting a user account the steps we followed are :
+            1)Making the user inactive
+            2)Deleting the current user token
+            2)logging out the user
+        """
+        # getting  token from HTTP_AUTHORIZATION and removing the bearer part from it
+        token = request.META['HTTP_AUTHORIZATION'].split(' ')
+        try:
+            # getting token
+            token = Token.objects.get(key=token[1])
+            # getting user info from token
+            user = token.user
+            # deleting token
+            token.delete()
+            userData = User.objects.get(id=user.id)
+            # making user inactive
+            userData.is_active = False
+            userData.save()
+            # logging out the user
+            logout(request)
+            return JsonResponse(
+                {"data": "Deleted account and logged out the user successfully"}, status=status.HTTP_200_OK
+            )
+        except Token.DoesNotExist:
+            return JsonResponse(
+                {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
+            )
+        except Exception as error:
+            return JsonResponse(
+                {"error": error}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+    @action(detail=False, methods=['put'])
+    def reset_password(self, request):
+        """
+            Need to send the current password that the user is having along with the password the user want to change
+        """
+        if "current_password" not in request.data:
+            return JsonResponse(
+                {"error": "Enter password"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if "password" not in request.data:
+            return JsonResponse(
+                {"error": "Enter password"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        # getting  token from HTTP_AUTHORIZATION and removing the bearer part from it
+        token = request.META['HTTP_AUTHORIZATION'].split(' ')
+        try:
+            # getting user info from token
+            user = Token.objects.get(key=token[1]).user
+            # checking if the current password entered by the user is correct
+            if not user.check_password(request.data['current_password']):
+                return JsonResponse(
+                    {"error": "Password entered is incorrect"}, status=status.HTTP_400_BAD_REQUEST
+                )
+            # setting a new password if the current password is matching
+            user.set_password(request.data['password'])
+            user.save()
+            return JsonResponse(
+                {"data": UserSerializer(user).data}, status=status.HTTP_200_OK
+            )
+        except Token.DoesNotExist:
+            return JsonResponse(
+                {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
+            )
+        except Exception as error:
+            return JsonResponse(
+                {"error": error}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+class GameCode(viewsets.GenericViewSet):
+    serializer_class = GameSerializer
+
+    permission_classes= (AllowAny,)
+
+    def create(self, request):
+        """
+            Generates game code given a user name and category.
+            While creating a game for a particular user  we also make sure the category exists
+        """
+        # checking if the required fields user name and category are entered
+        if "user_name" not in request.data:
+            return JsonResponse(
+                {"error": "Enter user_name"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if "category" not in request.data:
+            return JsonResponse(
+                {"error": "Enter category"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        # checking if the category exists
+        category = Category.objects.filter(name=request.data['category'])
+        print(category)
+        if len(category) == 0:
+            return JsonResponse(
+                {"error": "Category does not exist"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # creating game code given a username and category
+        game_serializer = GameSerializer(data=request.data)
+
+        if not game_serializer.is_valid():
+            return JsonResponse(game_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        game_serializer.save()
+
+        return JsonResponse(game_serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['delete'], url_path='end/(?P<game_code>[^/.]+)')
+    def end(self, request, *args, **kwargs):
+        """
+             Ends the game
+        """
+        try:
+            # Getting the game code from the query params
+            game_code = int(kwargs['game_code'])
+            game = Game.objects.get(game_code=game_code)
+            # Updating the game active status to false
+            game.active = False
+            game.save()
+            # Serializing the given game code data
+            gameData = GameSerializer(game).data
+            return JsonResponse({
+                "data": gameData
+            }, status=status.HTTP_200_OK)
+        except Game.DoesNotExist:
+            return JsonResponse({
+                "error": "Invalid game code"
+            }, status=status.HTTP_400_BAD_REQUEST)
