@@ -17,7 +17,7 @@ from django.db import IntegrityError
 
 from game.models import Game, Question, UserGames, Options, Category
 from game.serializers import GameSerializer, QuestionSerializer, OptionsSerializer, UserGamesSerializer, \
-    CategorySerializer, UserSerializer, ResetUserPasswordSerializer
+    CategorySerializer, UserSerializer, ResetUserPasswordSerializer, CategoryUpdateSerializer
 
 from rest_framework.authtoken.models import Token
 
@@ -35,31 +35,6 @@ def get_all_category(request):
             "error": error
         }, status=status.HTTP_400_BAD_REQUEST)
 
-
-@api_view(['POST'])
-@authentication_classes((TokenAuthentication,))
-def create_category(request):
-    if request.method == "POST":
-        if 'name' not in request.data:
-            return JsonResponse({
-                "error": "Enter category name"
-            }, status=status.HTTP_400_BAD_REQUEST)
-        token = request.META['HTTP_AUTHORIZATION'].split(' ')
-        try:
-            user = Token.objects.get(key=token[1]).user
-        except Token.DoesNotExist:
-            return JsonResponse(
-                {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
-            )
-        data = {
-            'name': request.data['name'],
-            'user': user.id
-        }
-        createcategory = CategorySerializer(data=data)
-        if createcategory.is_valid():
-            createcategory.save()
-            return Response(createcategory.data, status=status.HTTP_201_CREATED)
-        return Response(createcategory.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['POST'])
@@ -241,49 +216,6 @@ def get_questions_user(request):
     }, status=status.HTTP_200_OK)
 
 
-@api_view(['GET'])
-@authentication_classes((TokenAuthentication,))
-def get_all_category_user(request):
-    try:
-        token = request.META['HTTP_AUTHORIZATION'].split(' ')
-        try:
-            user = Token.objects.get(key=token[1]).user
-        except Token.DoesNotExist:
-            return JsonResponse(
-                {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
-            )
-        data = Category.objects.filter(user=user.id)
-        question = CategorySerializer(data, many=True).data
-        return JsonResponse({
-            "data": question
-        }, status=status.HTTP_200_OK)
-    except Exception as error:
-        return JsonResponse({
-            "error": error
-        }, status=status.HTTP_400_BAD_REQUEST)
-
-
-@api_view(["POST"])
-def create_a_game_code(request):
-    if "user_name" not in request.data:
-        return JsonResponse(
-            {"error": "Enter user_name"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    if "category" not in request.data:
-        return JsonResponse(
-            {"error": "Enter category"}, status=status.HTTP_400_BAD_REQUEST
-        )
-
-    data = {
-        'user_name': request.data['user_name'],
-        'category': request.data['category']
-    }
-    game = GameSerializer(data=data)
-    if game.is_valid():
-        game.save()
-        return JsonResponse(game.data, status=status.HTTP_200_OK)
-    return JsonResponse(game.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
 @api_view(["POST"])
 def check_if_game_code_isValid(request):
@@ -381,25 +313,6 @@ def check_if_user_can_play_game_code(request):
         JsonResponse({"error": error}, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(["PUT"])
-def end_game(request):
-    if "game_code" not in request.data:
-        return JsonResponse(
-            {"error": "Enter game_code"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    try:
-        game = Game.objects.get(game_code=request.data['game_code'])
-        updated = Game.objects.filter(game_code=request.data['game_code']).update(active=False)
-        game = Game.objects.get(game_code=request.data['game_code'])
-        gameData = GameSerializer(game).data
-        return JsonResponse({
-            "data": gameData
-        }, status=status.HTTP_200_OK)
-    except Game.DoesNotExist:
-        return JsonResponse({
-            "error": "Invalid game code"
-        }, status=status.HTTP_400_BAD_REQUEST)
-
 
 @api_view(["POST"])
 def update_score_usergame(request):
@@ -477,190 +390,6 @@ def get_leader_board_game_code(request):
 
 
 @api_view(['POST'])
-def register(request):
-    if "username" not in request.data:
-        return JsonResponse(
-            {"error": "Enter username"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    if "email" not in request.data:
-        return JsonResponse(
-            {"error": "Enter email"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    if "password" not in request.data:
-        return JsonResponse(
-            {"error": "Enter password"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    user = User.objects.filter(username=request.data['username'])
-    if len(user) != 0:
-        return JsonResponse(
-            {"error": "Username already exists"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    user = User.objects.filter(email=request.data['email'])
-    if len(user) != 0:
-        return JsonResponse(
-            {"error": "Email address already exists"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    VALID_USER_FIELDS = [f.name for f in get_user_model()._meta.fields]
-    serialized = UserSerializer(data=request.data)
-    if serialized.is_valid():
-        user_data = {field: data for (field, data) in request.data.items() if field in VALID_USER_FIELDS}
-        user = get_user_model().objects.create_user(
-            **user_data
-        )
-        return Response(UserSerializer(instance=user).data, status=status.HTTP_201_CREATED)
-    else:
-        return Response(serialized.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-@api_view(['POST'])
-def login_user(request):
-    if "user_name" not in request.data:
-        return JsonResponse(
-            {"error": "Enter user_name"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    if "password" not in request.data:
-        return JsonResponse(
-            {"error": "Enter password"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    try:
-        user = User.objects.get(username__exact=request.data['user_name'], is_active=True)
-        if user is not None and user.check_password(request.data['password']) == True:
-            token = Token.objects.filter(user=user)
-            if len(token) != 0:
-                token.delete()
-            login(request, user)
-            userData = UserSerializer(user).data
-            try:
-                token = Token.objects.create(user=request.user)
-                return JsonResponse(
-                    {"token": token.key, "user": userData}, status=status.HTTP_200_OK
-                )
-            except IntegrityError:
-                return JsonResponse(
-                    {"error": "User is already logged in"}, status=status.HTTP_400_BAD_REQUEST
-                )
-        else:
-            return JsonResponse(
-                {"error": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST
-            )
-    except User.DoesNotExist:
-        return JsonResponse(
-            {"error": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST
-        )
-
-
-@api_view(['POST'])
-@authentication_classes((TokenAuthentication,))
-def delete_user(request):
-    print(request.META['HTTP_AUTHORIZATION'])
-    print(request.user)
-    token = request.META['HTTP_AUTHORIZATION'].split(' ')
-    try:
-        token = Token.objects.get(key=token[1])
-        user = token.user
-        token.delete()
-        userData = User.objects.get(id=user.id)
-        userData.is_active = False
-        userData.save()
-        logout(request)
-        # print(request.META['HTTP_AUTHORIZATION'])
-        # token = request.META['HTTP_AUTHORIZATION'].split(' ')
-        # user = Token.objects.get(key=token[1]).user
-        return JsonResponse(
-            {"data": "Deleted account and logged out the user successfully"}, status=status.HTTP_200_OK
-        )
-    except Token.DoesNotExist:
-        return JsonResponse(
-            {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
-        )
-    except Exception as error:
-        return JsonResponse(
-            {"error": error}, status=status.HTTP_400_BAD_REQUEST
-        )
-
-
-@api_view(['GET'])
-@authentication_classes((TokenAuthentication,))
-def get_user_data(request):
-    token = request.META['HTTP_AUTHORIZATION'].split(' ')
-    try:
-        # print(request.META['HTTP_AUTHORIZATION'])
-        # token = request.META['HTTP_AUTHORIZATION'].split(' ')
-        user = Token.objects.get(key=token[1]).user
-        return JsonResponse(
-            {"data": UserSerializer(user).data}, status=status.HTTP_200_OK
-        )
-    except Token.DoesNotExist:
-        return JsonResponse(
-            {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
-        )
-    except Exception as error:
-        return JsonResponse(
-            {"error": error}, status=status.HTTP_400_BAD_REQUEST
-        )
-
-
-@api_view(['PUT'])
-@authentication_classes((TokenAuthentication,))
-def change_password(request):
-    if "current_password" not in request.data:
-        return JsonResponse(
-            {"error": "Enter password"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    if "password" not in request.data:
-        return JsonResponse(
-            {"error": "Enter password"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    token = request.META['HTTP_AUTHORIZATION'].split(' ')
-    try:
-        user = Token.objects.get(key=token[1]).user
-        if not user.check_password(request.data['current_password']):
-            return JsonResponse(
-                {"error": "Password entered is incorrect"}, status=status.HTTP_400_BAD_REQUEST
-            )
-        user.set_password(request.data['password'])
-        user.save()
-        return JsonResponse(
-            {"data": UserSerializer(user).data}, status=status.HTTP_200_OK
-        )
-    except Token.DoesNotExist:
-        return JsonResponse(
-            {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
-        )
-    except Exception as error:
-        return JsonResponse(
-            {"error": error}, status=status.HTTP_400_BAD_REQUEST
-        )
-
-
-@api_view(['PUT'])
-def forgot_password(request):
-    if "email" not in request.data:
-        return JsonResponse(
-            {"error": "Enter password"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    if "password" not in request.data:
-        return JsonResponse(
-            {"error": "Enter password"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    try:
-        user = User.objects.get(email=request.data['email'])
-        user.set_password(request.data['password'])
-        user.save()
-        return JsonResponse(
-            {"data": UserSerializer(user).data}, status=status.HTTP_200_OK
-        )
-    except User.DoesNotExist:
-        return JsonResponse(
-            {"error": "Invalid email address"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    except Exception as error:
-        return JsonResponse(
-            {"error": error}, status=status.HTTP_400_BAD_REQUEST
-        )
-
-
-@api_view(['POST'])
 @authentication_classes((TokenAuthentication,))
 def delete_question(request):
     token = request.META['HTTP_AUTHORIZATION'].split(' ')
@@ -688,98 +417,6 @@ def delete_question(request):
     Question.objects.filter(id=request.data['id']).delete()
     return JsonResponse(
         {"question": "Question deleted sucessfully"}, status=status.HTTP_204_NO_CONTENT
-    )
-
-
-@api_view(['POST'])
-@authentication_classes((TokenAuthentication,))
-def delete_category(request):
-    token = request.META['HTTP_AUTHORIZATION'].split(' ')
-    if "name" not in request.data:
-        return JsonResponse(
-            {"error": "Enter a valid category name"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    try:
-        user = Token.objects.get(key=token[1]).user
-    except Token.DoesNotExist:
-        return JsonResponse(
-            {"error": "Invalid User token "}, status=status.HTTP_401_UNAUTHORIZED
-        )
-    categoryData = Category.objects.filter(name=request.data['name'])
-    if len(categoryData) == 0:
-        return JsonResponse(
-            {"error": "There is no category with this name"}, status=status.HTTP_401_UNAUTHORIZED
-        )
-    cat = CategorySerializer(categoryData[0], many=False).data
-    if cat['user'] != user.id:
-        return JsonResponse(
-            {"error": "Cannot delete the category .It can only be deleted by the user who created"},
-            status=status.HTTP_401_UNAUTHORIZED
-        )
-    categoryData = Category.objects.get(name=request.data['name'])
-    question = Question.objects.filter(category=categoryData)
-    if len(question) != 0:
-        return JsonResponse(
-            {"error": "Cannot delete the category .Questions have refrence to this"},
-            status=status.HTTP_401_UNAUTHORIZED
-        )
-    ug = UserGames.objects.filter(category=categoryData)
-    if len(ug) != 0:
-        return JsonResponse(
-            {"error": "Cannot delete the category .Some players have played the game"},
-            status=status.HTTP_401_UNAUTHORIZED
-        )
-    game = Game.objects.filter(category=categoryData)
-    if len(game) != 0:
-        return JsonResponse(
-            {"error": "Cannot delete the category .Games are created"},
-            status=status.HTTP_401_UNAUTHORIZED
-        )
-    Category.objects.filter(name=request.data['name']).delete()
-    return JsonResponse(
-        {"category": "Category name deleted sucessfully"}, status=status.HTTP_204_NO_CONTENT
-    )
-
-
-@api_view(['PUT'])
-@authentication_classes((TokenAuthentication,))
-def update_category(request):
-    token = request.META['HTTP_AUTHORIZATION'].split(' ')
-    if "name" not in request.data:
-        return JsonResponse(
-            {"error": "Enter a valid category name"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    if "newname" not in request.data:
-        return JsonResponse(
-            {"error": "Enter a valid category name"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    try:
-        user = Token.objects.get(key=token[1]).user
-    except Token.DoesNotExist:
-        return JsonResponse(
-            {"error": "Invalid User token "}, status=status.HTTP_401_UNAUTHORIZED
-        )
-    categoryData = Category.objects.filter(name=request.data['name'])
-    if len(categoryData) == 0:
-        return JsonResponse(
-            {"error": "There is no category with this name"}, status=status.HTTP_401_UNAUTHORIZED
-        )
-    cat = CategorySerializer(categoryData[0], many=False).data
-    if cat['user'] != user.id:
-        return JsonResponse(
-            {"error": "Cannot delete the category .It can only be deleted by the user who created"},
-            status=status.HTTP_401_UNAUTHORIZED
-        )
-    cat = Category.objects.get(name=request.data['name'])
-    cat.name = request.data['newname']
-    cat.save()
-    categoryData = Category.objects.get(name=request.data['name'])
-    Question.objects.filter(category=categoryData).update(category=cat)
-    UserGames.objects.filter(category=categoryData).update(category=cat)
-    Game.objects.filter(category=categoryData).update(category=cat)
-    Category.objects.filter(name=request.data['name']).delete()
-    return JsonResponse(
-        {"category": "Category name updated sucessfully"}, status=status.HTTP_201_CREATED
     )
 
 @api_view(['POST'])
@@ -818,7 +455,7 @@ def opendb(request):
                 serializer = OptionsSerializer(optionData[0], many=False)
             optionsListData.append(serializer.data['option'])
         escapedquestion = question['question']
-        unescapedquestion = html.unescape(escapedquestion).replace("\\","")
+        unescapedquestion = html.unescape(escapedquestion).replace("\\", "")
         question = {
             "question": unescapedquestion,
             "category": question['category'],
@@ -831,7 +468,7 @@ def opendb(request):
             serializer.save()
             questionsList.append(serializer.data)
         else:
-            errorList.append({'error':serializer.errors,'question':html.unescape(question['question'])})
+            errorList.append({'error': serializer.errors, 'question': html.unescape(question['question'])})
     if len(errorList) != 0:
         return JsonResponse({
             "data": questionsList,
@@ -842,6 +479,7 @@ def opendb(request):
             "data": questionsList
         }, status=status.HTTP_200_OK)
 
+
 class UserAPIs(viewsets.GenericViewSet):
     """
         Handling user api that are dont need authentication
@@ -849,6 +487,9 @@ class UserAPIs(viewsets.GenericViewSet):
     serializer_class = UserSerializer
 
     permission_classes = (AllowAny,)
+
+    def get_queryset(self):
+        return None
 
     @action(detail=False, methods=['post'])
     def register(self, request):
@@ -984,6 +625,9 @@ class UserDetailsApi(viewsets.GenericViewSet):
 
     serializer_class = UserSerializer
 
+    def get_queryset(self):
+        return None
+
     def get_serializer_class(self):
         # TODO need to have a look if the other way is possible of separating serializers (since here there is only
         #  one put api it works fine)
@@ -1095,7 +739,10 @@ class UserDetailsApi(viewsets.GenericViewSet):
 class GameCode(viewsets.GenericViewSet):
     serializer_class = GameSerializer
 
-    permission_classes= (AllowAny,)
+    permission_classes = (AllowAny,)
+
+    def get_queryset(self):
+        return None
 
     def create(self, request):
         """
@@ -1149,4 +796,186 @@ class GameCode(viewsets.GenericViewSet):
         except Game.DoesNotExist:
             return JsonResponse({
                 "error": "Invalid game code"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class Category(viewsets.GenericViewSet):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        return None
+
+    def get_serializer_class(self):
+        # TODO need to have a look if the other way is possible of separating serializers (since here there is only
+        #  one put api it works fine)
+        if self.request.method == 'PUT':
+            # for now we have only one put api i.e reset password api which is accepting password along with current
+            # password
+            return CategoryUpdateSerializer
+        # for info and delete apis
+        return CategorySerializer
+
+    @action(detail=False, methods=['post'], url_path='create')
+    def create_category(self, request):
+        """
+            Create Category
+        """
+        if 'name' not in request.data:
+            return JsonResponse({
+                "error": "Enter category name"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        # getting  token from HTTP_AUTHORIZATION and removing the bearer part from it
+        token = request.META['HTTP_AUTHORIZATION'].split(' ')
+        try:
+            # getting user info from token
+            user = Token.objects.get(key=token[1]).user
+        except Token.DoesNotExist:
+            return JsonResponse(
+                {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
+            )
+        # Creating category with name and user
+        data = {
+            'name': request.data['name'],
+            'user': user.id
+        }
+        createcategory = CategorySerializer(data=data)
+        if createcategory.is_valid():
+            createcategory.save()
+            return Response(createcategory.data, status=status.HTTP_201_CREATED)
+        return Response(createcategory.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['put'], url_path='update')
+    def update_category(self, request):
+        """
+            Update Category
+        """
+        # getting  token from HTTP_AUTHORIZATION and removing the bearer part from it
+        token = request.META['HTTP_AUTHORIZATION'].split(' ')
+        if "name" not in request.data:
+            return JsonResponse(
+                {"error": "Enter a valid category name"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if "newname" not in request.data:
+            return JsonResponse(
+                {"error": "Enter a valid category name"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            # getting user info from token
+            user = Token.objects.get(key=token[1]).user
+        except Token.DoesNotExist:
+            return JsonResponse(
+                {"error": "Invalid User token "}, status=status.HTTP_401_UNAUTHORIZED
+            )
+        # check if the given category exists
+        categoryData = Category.objects.filter(name=request.data['name'])
+        if len(categoryData) == 0:
+            return JsonResponse(
+                {"error": "There is no category with this name"}, status=status.HTTP_401_UNAUTHORIZED
+            )
+        cat = CategorySerializer(categoryData[0], many=False).data
+        # checking if this category is created by authenticated user only
+        if cat['user'] != user.id:
+            return JsonResponse(
+                {"error": "Cannot delete the category .It can only be deleted by the user who created"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        # updating the category with new name
+        # here on updating the category with new name it creates a new one without modifying the current one
+        # since we are changing the primary key
+        cat = Category.objects.get(name=request.data['name'])
+        cat.name = request.data['newname']
+        cat.save()
+        categoryData = Category.objects.get(name=request.data['name'])
+        # updating the question,usergames,game with new category name
+        Question.objects.filter(category=categoryData).update(category=cat)
+        UserGames.objects.filter(category=categoryData).update(category=cat)
+        Game.objects.filter(category=categoryData).update(category=cat)
+        # deleting the previous category name
+        Category.objects.filter(name=request.data['name']).delete()
+        return JsonResponse(
+            {"category": "Category name updated sucessfully"}, status=status.HTTP_201_CREATED
+        )
+
+    @action(detail=False, methods=['delete'], url_path='delete/(?P<category>[^/.]+)')
+    def delete_category(self, request, *args, **kwargs):
+        """
+                 Deleting category
+             """
+        # getting  token from HTTP_AUTHORIZATION and removing the bearer part from it
+        token = request.META['HTTP_AUTHORIZATION'].split(' ')
+        # retreiving category name
+        name = (kwargs['category'])
+        try:
+            # getting user info
+            user = Token.objects.get(key=token[1]).user
+        except Token.DoesNotExist:
+            return JsonResponse(
+                {"error": "Invalid User token "}, status=status.HTTP_401_UNAUTHORIZED
+            )
+        # checking if the caetgory exists
+        categoryData = Category.objects.filter(name=name)
+        if len(categoryData) == 0:
+            return JsonResponse(
+                {"error": "There is no category with this name"}, status=status.HTTP_401_UNAUTHORIZED
+            )
+        cat = CategorySerializer(categoryData[0], many=False).data
+        # checking if the category is created by the user who is logged in
+        if cat['user'] != user.id:
+            return JsonResponse(
+                {"error": "Cannot delete the category .It can only be deleted by the user who created"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        categoryData = Category.objects.get(name=name)
+        # checking if the questions are created in this category
+        question = Question.objects.filter(category=categoryData)
+        if len(question) != 0:
+            return JsonResponse(
+                {"error": "Cannot delete the category .Questions have refrence to this"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        # checking if the any games are played by users in this category
+        ug = UserGames.objects.filter(category=categoryData)
+        if len(ug) != 0:
+            return JsonResponse(
+                {"error": "Cannot delete the category .Some players have played the game"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        # checking if the any game is created in this category
+        game = Game.objects.filter(category=categoryData)
+        if len(game) != 0:
+            return JsonResponse(
+                {"error": "Cannot delete the category .Games are created"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        # if all the above conditions are applied the category then  delete category
+        Category.objects.filter(name=name).delete()
+        return JsonResponse(
+            {"category": "Category name deleted sucessfully"}, status=status.HTTP_204_NO_CONTENT
+        )
+
+    @action(detail=False, methods=['get'], url_path='list/user')
+    def category_list(self, request):
+        """
+            Getting categories list that are created by logged in user
+        """
+        try:
+            # getting  token from HTTP_AUTHORIZATION and removing the bearer part from it
+            token = request.META['HTTP_AUTHORIZATION'].split(' ')
+            try:
+                # getting user info
+                user = Token.objects.get(key=token[1]).user
+            except Token.DoesNotExist:
+                return JsonResponse(
+                    {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
+                )
+            # getting category list by user id
+            data = Category.objects.filter(user=user.id)
+            question = CategorySerializer(data, many=True).data
+            return JsonResponse({
+                "data": question
+            }, status=status.HTTP_200_OK)
+        except Exception as error:
+            return JsonResponse({
+                "error": error
             }, status=status.HTTP_400_BAD_REQUEST)

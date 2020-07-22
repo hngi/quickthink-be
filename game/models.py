@@ -15,7 +15,7 @@ def add_one():
 
 class Category(models.Model):
     name = models.CharField(primary_key=True, max_length=100, unique=True, null=False)
-    user = models.ForeignKey(User, on_delete=models.PROTECT, null=True)
+    user = models.ForeignKey(User, on_delete=models.PROTECT, null=True,editable=False)
 
 
 class Game(models.Model):
