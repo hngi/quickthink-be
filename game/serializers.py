@@ -54,3 +54,11 @@ class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = '__all__'
+
+
+class CategoryUpdateSerializer(serializers.ModelSerializer):
+    newname = serializers.CharField()
+
+    class Meta:
+        model = Category
+        fields = '__all__'
