@@ -36,19 +36,6 @@ def get_all_category(request):
         }, status=status.HTTP_400_BAD_REQUEST)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 @api_view(["POST"])
 def check_if_game_code_isValid(request):
     if "game_code" not in request.data:

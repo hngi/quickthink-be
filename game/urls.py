@@ -3,7 +3,6 @@ from django.urls import path, include
 from rest_framework import routers
 
 from game.views import  check_if_game_code_isValid, update_score_usergame,get_leader_board_game_code, update_score_count_usergame, get_all_category, \
-     \
     check_if_user_can_play_game_code, UserDetailsApi, UserAPIs, GameCode, Category, Question
 
 userRouter = routers.DefaultRouter()
