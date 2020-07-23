@@ -37,183 +37,15 @@ def get_all_category(request):
 
 
 
-@api_view(['POST'])
-@authentication_classes((TokenAuthentication,))
-def create_question(request):
-    token = request.META['HTTP_AUTHORIZATION'].split(' ')
-    try:
-        user = Token.objects.get(key=token[1]).user
-    except Token.DoesNotExist:
-        return JsonResponse(
-            {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
-        )
-    question = request.data.get('Question')
-    cats = Category.objects.filter(name=question['category'])
-    if len(cats) == 0:
-        return JsonResponse(
-            {"error": "Enter valid category"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    try:
-        index = question['options'].index(question['answer'])
-    except Exception as error:
-        return JsonResponse(
-            {"error": "There is no option with the answer "}, status=status.HTTP_400_BAD_REQUEST
-        )
-    category = CategorySerializer(cats, many=True).data
-    options = question['options']
-    if len(options) != 4:
-        return JsonResponse(
-            {"error": "There should be exaclty 4 options"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    optionsList = []
-    for option in options:
-        optionData = Options.objects.filter(option=option)
-        if len(optionData) == 0:
-            option = {
-                'option': option
-            }
-            serializer = OptionsSerializer(data=option, many=False)
-            if serializer.is_valid():
-                serializer.save()
-        else:
-            serializer = OptionsSerializer(optionData[0], many=False)
-        optionsList.append(serializer.data['option'])
-    question = {
-        "question": question['question'],
-        "category": category[0]['name'],
-        "options": optionsList,
-        "user": user.id,
-        "answer": optionsList[index]
-    }
-    serializer = QuestionSerializer(data=question)
-    if serializer.is_valid():
-        serializer.save()
-        return JsonResponse({
-            "data": serializer.data
-        }, status=status.HTTP_200_OK)
-    return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['PUT'])
-@authentication_classes((TokenAuthentication,))
-def update_question(request):
-    token = request.META['HTTP_AUTHORIZATION'].split(' ')
-    try:
-        user = Token.objects.get(key=token[1]).user
-    except Token.DoesNotExist:
-        return JsonResponse(
-            {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
-        )
-    question = request.data.get('Question')
-    questionData = Question.objects.filter(id=question['id'])
-
-    if len(questionData) == 0:
-        return JsonResponse(
-            {"error": "There is no question with this id"}, status=status.HTTP_401_UNAUTHORIZED
-        )
-    ques = QuestionSerializer(questionData[0], many=False).data
-    print(ques)
-    if ques['user'] != user.id:
-        return JsonResponse(
-            {"error": "Cannot update the question .The questions can only be updated by the user who created"},
-            status=status.HTTP_401_UNAUTHORIZED
-        )
-
-    cats = Category.objects.filter(name=question['category'])
-    if len(cats) == 0:
-        return JsonResponse(
-            {"error": "Enter valid category"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    try:
-        index = question['options'].index(question['answer'])
-    except Exception as error:
-        return JsonResponse(
-            {"error": "There is no option with the answer "}, status=status.HTTP_400_BAD_REQUEST
-        )
-
-    category = CategorySerializer(cats, many=True).data
-    options = question['options']
-    if len(options) != 4:
-        return JsonResponse(
-            {"error": "There should be exaclty 4 options"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    optionsList = []
-    for option in options:
-        optionData = Options.objects.filter(option=option)
-        if len(optionData) == 0:
-            option = {
-                'option': option
-            }
-            serializer = OptionsSerializer(data=option, many=False)
-            if serializer.is_valid():
-                serializer.save()
-        else:
-            serializer = OptionsSerializer(optionData[0], many=False)
-        optionsList.append(serializer.data['option'])
-
-    questionData = Question.objects.get(id=question['id'])
-    questionData.question = question['question']
-    questionData.category = Category.objects.get(name=category[0]['name'])
-    questionData.options.set(optionsList)
-    questionData.user = user
-    questionData.answer = Options.objects.get(option=optionsList[index])
-    questionData.save()
-    serializer = QuestionSerializer(questionData)
-    return JsonResponse({
-        "data": serializer.data
-    }, status=status.HTTP_200_OK)
 
 
-@api_view(['GET'])
-@authentication_classes((TokenAuthentication,))
-def get_questions(request):
-    token = request.META['HTTP_AUTHORIZATION'].split(' ')
-    try:
-        user = Token.objects.get(key=token[1]).user
-    except Token.DoesNotExist:
-        return JsonResponse(
-            {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
-        )
-    questions = Question.objects.filter()
-    questionData = QuestionSerializer(questions, many=True).data
-    questions = []
-    for question in questionData:
-        options = []
-        for option in question['options']:
-            optionQuery = Options.objects.get(option=option)
-            optionData = OptionsSerializer(optionQuery, many=False).data
-            options.append(optionData['option'])
-        question['options'] = options
-        questions.append(question)
-    return JsonResponse({
-        "data": questions
-    }, status=status.HTTP_200_OK)
 
 
-@api_view(['GET'])
-@authentication_classes((TokenAuthentication,))
-def get_questions_user(request):
-    token = request.META['HTTP_AUTHORIZATION'].split(' ')
-    try:
-        user = Token.objects.get(key=token[1]).user
-    except Token.DoesNotExist:
-        return JsonResponse(
-            {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
-        )
-    questions = Question.objects.filter(user=user.id)
-    questionData = QuestionSerializer(questions, many=True).data
-    questions = []
-    for question in questionData:
-        options = []
-        for option in question['options']:
-            optionQuery = Options.objects.get(option=option)
-            optionData = OptionsSerializer(optionQuery, many=False).data
-            options.append(optionData['option'])
-        question['options'] = options
-        questions.append(question)
-    return JsonResponse({
-        "data": questions
-    }, status=status.HTTP_200_OK)
+
+
+
 
 
 
@@ -389,95 +221,9 @@ def get_leader_board_game_code(request):
         }, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['POST'])
-@authentication_classes((TokenAuthentication,))
-def delete_question(request):
-    token = request.META['HTTP_AUTHORIZATION'].split(' ')
-    if "id" not in request.data:
-        return JsonResponse(
-            {"error": "Enter question ID"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    try:
-        user = Token.objects.get(key=token[1]).user
-    except Token.DoesNotExist:
-        return JsonResponse(
-            {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
-        )
-    questionData = Question.objects.filter(id=request.data['id'])
-    if len(questionData) == 0:
-        return JsonResponse(
-            {"error": "There is no question with this id"}, status=status.HTTP_401_UNAUTHORIZED
-        )
-    ques = QuestionSerializer(questionData[0], many=False).data
-    if ques['user'] != user.id:
-        return JsonResponse(
-            {"error": "Cannot delete the question .The questions can only be deleted by the user who created"},
-            status=status.HTTP_401_UNAUTHORIZED
-        )
-    Question.objects.filter(id=request.data['id']).delete()
-    return JsonResponse(
-        {"question": "Question deleted sucessfully"}, status=status.HTTP_204_NO_CONTENT
-    )
 
-@api_view(['POST'])
-@authentication_classes((TokenAuthentication,))
-def opendb(request):
-    # User Authorization to ensure only user who adds questions can delete/edit them
-    token = request.META['HTTP_AUTHORIZATION'].split(' ')
-    try:
-        user = Token.objects.get(key=token[1]).user
-    except Token.DoesNotExist:
-        return JsonResponse(
-            {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
-        )
-    data = requests.get(url=request.data['url']).json()  # takes in data from url and displays json response
-    questionsList = []  # option list
-    errorList = []
-    for question in data['results']:  # goes through option list (LOOP 2)
-        optionsList = html.unescape(question['incorrect_answers'])
-        optionsList.append(question['correct_answer'])
-        random.shuffle(optionsList)
-        try:
-            index = optionsList.index(question['correct_answer'])
-        except Exception as error:
-            print(error)
-        optionsListData = []
-        for option in optionsList:
-            optionData = Options.objects.filter(option=option)
-            if len(optionData) == 0:
-                option = {
-                    'option': option
-                }
-                serializer = OptionsSerializer(data=option, many=False)
-                if serializer.is_valid():
-                    serializer.save()
-            else:
-                serializer = OptionsSerializer(optionData[0], many=False)
-            optionsListData.append(serializer.data['option'])
-        escapedquestion = question['question']
-        unescapedquestion = html.unescape(escapedquestion).replace("\\", "")
-        question = {
-            "question": unescapedquestion,
-            "category": question['category'],
-            "options": optionsListData,
-            "user": user.id,
-            "answer": html.unescape(optionsListData[index])
-        }
-        serializer = QuestionSerializer(data=question)
-        if serializer.is_valid():
-            serializer.save()
-            questionsList.append(serializer.data)
-        else:
-            errorList.append({'error': serializer.errors, 'question': html.unescape(question['question'])})
-    if len(errorList) != 0:
-        return JsonResponse({
-            "data": questionsList,
-            'error': errorList
-        }, status=status.HTTP_200_OK)
-    else:
-        return JsonResponse({
-            "data": questionsList
-        }, status=status.HTTP_200_OK)
+
+
 
 
 class UserAPIs(viewsets.GenericViewSet):
@@ -735,6 +481,294 @@ class UserDetailsApi(viewsets.GenericViewSet):
                 {"error": error}, status=status.HTTP_400_BAD_REQUEST
             )
 
+class Question(viewsets.GenericViewSet):
+    """
+    Handles all Question Operations that require user token. 
+    """
+    serializer_class = QuestionSerializer
+    authentication_classes = [TokenAuthentication]
+    permission_classes = (IsAuthenticated,)
+
+    @action(detail=False, methods=['GET'], url_path='getuserquestions')
+    def get_questions_user(request):
+        #Gets token from user 
+        token = request.META['HTTP_AUTHORIZATION'].split(' ')
+        try:
+            user = Token.objects.get(key=token[1]).user
+        except Token.DoesNotExist:
+            return JsonResponse(
+                {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
+            )
+        #Filters questions by user ID to get all question details created by that user
+        questions = Question.objects.filter(user=user.id)
+        questionData = QuestionSerializer(questions, many=True).data
+        questions = []
+        for question in questionData:
+            options = []
+            for option in question['options']:
+                optionQuery = Options.objects.get(option=option)
+                optionData = OptionsSerializer(optionQuery, many=False).data
+                options.append(optionData['option'])
+            question['options'] = options
+            questions.append(question)
+        return JsonResponse({
+            "data": questions
+        }, status=status.HTTP_200_OK)
+
+
+    @action(detail=False, methods=['POST'], url_path='create')
+    def create_question(request):
+        """
+        Creates a question given the category already exists 
+        Requires AUTH token
+        """
+        token = request.META['HTTP_AUTHORIZATION'].split(' ')
+        try:
+            user = Token.objects.get(key=token[1]).user
+        except Token.DoesNotExist:
+            return JsonResponse(
+                {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
+            )
+        #Exception handling below    
+        question = request.data.get('Question')
+        cats = Category.objects.filter(name=question['category'])
+        if len(cats) == 0:
+            return JsonResponse(
+                {"error": "Enter valid category"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            index = question['options'].index(question['answer'])
+        except Exception as error:
+            return JsonResponse(
+                {"error": "There is no option with the answer "}, status=status.HTTP_400_BAD_REQUEST
+            )
+        category = CategorySerializer(cats, many=True).data
+        options = question['options']
+        if len(options) != 4:
+            return JsonResponse(
+                {"error": "There should be exaclty 4 options"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        optionsList = []
+        for option in options:  #creates an option list and inserts all options into the list
+            optionData = Options.objects.filter(option=option)
+            if len(optionData) == 0:
+                option = {
+                    'option': option
+                }
+                #save options using option serializers
+                serializer = OptionsSerializer(data=option, many=False)
+                if serializer.is_valid():
+                    serializer.save()
+            else:
+                serializer = OptionsSerializer(optionData[0], many=False)
+            optionsList.append(serializer.data['option'])
+        question = {
+            "question": question['question'], #takes quesion from user
+            "category": category[0]['name'], #takes category from existing category (create category endpoint)
+            "options": optionsList,
+            "user": user.id, #takes user id from pre-existing user model
+            "answer": optionsList[index]  #takes the correct answer from the optionsList
+        }
+        serializer = QuestionSerializer(data=question)
+        if serializer.is_valid():
+            serializer.save()
+            return JsonResponse({
+                "data": serializer.data
+            }, status=status.HTTP_200_OK)
+        return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+    @action(detail=False, methods=['PUT'], url_path='update')
+    def update_question(request):
+        token = request.META['HTTP_AUTHORIZATION'].split(' ')
+        try:
+            user = Token.objects.get(key=token[1]).user
+        except Token.DoesNotExist:
+            return JsonResponse(
+                {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
+            )
+        question = request.data.get('Question')
+        questionData = Question.objects.filter(id=question['id'])
+
+        if len(questionData) == 0:
+            return JsonResponse(
+                {"error": "There is no question with this id"}, status=status.HTTP_401_UNAUTHORIZED
+            )
+        ques = QuestionSerializer(questionData[0], many=False).data
+        print(ques)
+        if ques['user'] != user.id:
+            return JsonResponse(
+                {"error": "Cannot update the question .The questions can only be updated by the user who created"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        cats = Category.objects.filter(name=question['category'])
+        if len(cats) == 0:
+            return JsonResponse(
+                {"error": "Enter valid category"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            index = question['options'].index(question['answer'])
+        except Exception as error:
+            return JsonResponse(
+                {"error": "There is no option with the answer "}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        category = CategorySerializer(cats, many=True).data
+        options = question['options']
+        if len(options) != 4:
+            return JsonResponse(
+                {"error": "There should be exaclty 4 options"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        optionsList = []
+        for option in options:
+            optionData = Options.objects.filter(option=option)
+            if len(optionData) == 0:
+                option = {
+                    'option': option
+                }
+                serializer = OptionsSerializer(data=option, many=False)
+                if serializer.is_valid():
+                    serializer.save()
+            else:
+                serializer = OptionsSerializer(optionData[0], many=False)
+            optionsList.append(serializer.data['option'])
+
+        questionData = Question.objects.get(id=question['id'])
+        questionData.question = question['question']
+        questionData.category = Category.objects.get(name=category[0]['name'])
+        questionData.options.set(optionsList)
+        questionData.user = user
+        questionData.answer = Options.objects.get(option=optionsList[index])
+        questionData.save()
+        serializer = QuestionSerializer(questionData)
+        return JsonResponse({
+            "data": serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+    @action(detail=False, methods=['GET'], url_path='getallquestions')
+    def get_questions(request):
+        """
+        Gets ALL the questions in the database displayed by all users. 
+        
+        """
+        token = request.META['HTTP_AUTHORIZATION'].split(' ')
+        try:
+            user = Token.objects.get(key=token[1]).user
+        except Token.DoesNotExist:
+            return JsonResponse(
+                {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
+            )
+        questions = Question.objects.filter()
+        questionData = QuestionSerializer(questions, many=True).data
+        questions = []
+        for question in questionData:
+            options = []
+            for option in question['options']:
+                optionQuery = Options.objects.get(option=option)
+                optionData = OptionsSerializer(optionQuery, many=False).data
+                options.append(optionData['option'])
+            question['options'] = options
+            questions.append(question)
+        return JsonResponse({
+            "data": questions
+        }, status=status.HTTP_200_OK)
+
+
+    @action(detail=False, methods=['POST'], url_path='opendb')
+    def opendb(request):
+        """
+        This endpoint populates the database with questions from the Trivia API (opendb)
+        It Saves to the same models so these questions can be used exactly like the create_question endpoint (with user_id and everything)
+        Hint: create category first
+        """
+        # User Authorization to ensure only user who adds questions can delete/edit them
+        token = request.META['HTTP_AUTHORIZATION'].split(' ')
+        try:
+            user = Token.objects.get(key=token[1]).user
+        except Token.DoesNotExist:
+            return JsonResponse(
+                {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
+            )
+        data = requests.get(url=request.data['url']).json()  # takes in data from url and displays json response
+        questionsList = []  # option list
+        errorList = []
+        for question in data['results']:  # goes through option list (LOOP 2)
+            optionsList = html.unescape(question['incorrect_answers'])
+            optionsList.append(question['correct_answer'])
+            random.shuffle(optionsList)
+            try:
+                index = optionsList.index(question['correct_answer'])
+            except Exception as error:
+                print(error)
+            optionsListData = []
+            for option in optionsList:
+                optionData = Options.objects.filter(option=option)
+                if len(optionData) == 0:
+                    option = {
+                        'option': option
+                    }
+                    serializer = OptionsSerializer(data=option, many=False)
+                    if serializer.is_valid():
+                        serializer.save()
+                else:
+                    serializer = OptionsSerializer(optionData[0], many=False)
+                optionsListData.append(serializer.data['option'])
+            escapedquestion = question['question']
+            unescapedquestion = html.unescape(escapedquestion).replace("\\", "")
+            question = {
+                "question": unescapedquestion,
+                "category": question['category'],
+                "options": optionsListData,
+                "user": user.id,
+                "answer": html.unescape(optionsListData[index])
+            }
+            serializer = QuestionSerializer(data=question)
+            if serializer.is_valid():
+                serializer.save()
+                questionsList.append(serializer.data)
+            else:
+                errorList.append({'error': serializer.errors, 'question': html.unescape(question['question'])})
+        if len(errorList) != 0:
+            return JsonResponse({
+                "data": questionsList,
+                'error': errorList
+            }, status=status.HTTP_200_OK)
+        else:
+            return JsonResponse({
+                "data": questionsList
+            }, status=status.HTTP_200_OK)
+
+
+    @action(detail=False, methods=['POST'], url_path='delete')
+    def delete_question(request):
+        token = request.META['HTTP_AUTHORIZATION'].split(' ')
+        if "id" not in request.data:
+            return JsonResponse(
+                {"error": "Enter question ID"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            user = Token.objects.get(key=token[1]).user
+        except Token.DoesNotExist:
+            return JsonResponse(
+                {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
+            )
+        questionData = Question.objects.filter(id=request.data['id'])
+        if len(questionData) == 0:
+            return JsonResponse(
+                {"error": "There is no question with this id"}, status=status.HTTP_401_UNAUTHORIZED
+            )
+        ques = QuestionSerializer(questionData[0], many=False).data
+        if ques['user'] != user.id:
+            return JsonResponse(
+                {"error": "Cannot delete the question .The questions can only be deleted by the user who created"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        Question.objects.filter(id=request.data['id']).delete()
+        return JsonResponse(
+            {"question": "Question deleted sucessfully"}, status=status.HTTP_204_NO_CONTENT
+        )
 
 class GameCode(viewsets.GenericViewSet):
     serializer_class = GameSerializer
