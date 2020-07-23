@@ -684,9 +684,9 @@ class Question(viewsets.GenericViewSet):
         for question in data['results']:  # goes through option list (LOOP 2)
             optionsList = html.unescape(question['incorrect_answers'])
             optionsList.append(question['correct_answer'])
-            random.shuffle(optionsList)
+            random.shuffle(optionsList) #adds all answers to options and randomizes it.
             try:
-                index = optionsList.index(question['correct_answer'])
+                index = optionsList.index(question['correct_answer']) #appends the correct answer to options list
             except Exception as error:
                 print(error)
             optionsListData = []
@@ -702,6 +702,7 @@ class Question(viewsets.GenericViewSet):
                 else:
                     serializer = OptionsSerializer(optionData[0], many=False)
                 optionsListData.append(serializer.data['option'])
+            #fixed HTML encoding errors    
             escapedquestion = question['question']
             unescapedquestion = html.unescape(escapedquestion).replace("\\", "")
             question = {
