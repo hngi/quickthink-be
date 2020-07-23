@@ -140,3 +140,15 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',)
 }
+
+#Swagger Authorization settings
+
+SWAGGER_SETTINGS = {
+    'SECURITY_DEFINITIONS' : {
+        "Auth token here, eg: Bearer":{
+            "type":"apiKey",
+            "name":"Authorization",
+            "in":"header"
+        }
+    }
+}
