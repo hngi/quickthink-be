@@ -52,7 +52,7 @@ class UserGames(models.Model):
     )
 
 
-class NewsLetter(models.Model):
+class Newsletter(models.Model):
     email = models.EmailField(null=False, unique=True, blank=False)
     created_at = models.DateTimeField(default=datetime.now, blank=True)
 
