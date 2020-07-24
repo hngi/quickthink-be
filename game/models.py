@@ -58,6 +58,7 @@ class Newsletter(models.Model):
 
 
 class ContactUs(models.Model):
-    email = models.EmailField(null=False, blank=False, unique=True)
+    email = models.EmailField(null=False, blank=False, unique=False)
     full_name = models.CharField(max_length=100, null=False, blank=False)
     message = models.TextField(null=False)
+    created_at = models.DateTimeField(default=datetime.now, blank=True)
