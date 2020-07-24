@@ -3,11 +3,11 @@ import uuid
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator
 from django.db import models
-
+from datetime import datetime
 
 # Create your models here.
 def add_one():
-    largest = Game.objects.all().order_by('game_code').last()
+    largest = Game.objects.all().order_by("game_code").last()
     if not largest:
         return 1000
     return largest.game_code + 1
@@ -19,15 +19,16 @@ class Category(models.Model):
 
 
 class Game(models.Model):
-    game_code = models.IntegerField(primary_key=True,editable=False,
-                                    default=add_one)
+    game_code = models.IntegerField(primary_key=True, editable=False, default=add_one)
     category = models.ForeignKey(Category, on_delete=models.PROTECT)
     user_name = models.CharField(max_length=100, null=False)
     active = models.BooleanField(default=True)
 
 
 class Options(models.Model):
-    option = models.CharField(primary_key=True, max_length=100000, unique=True, null=False)
+    option = models.CharField(
+        primary_key=True, max_length=100000, unique=True, null=False
+    )
 
 
 class Question(models.Model):
@@ -36,13 +37,14 @@ class Question(models.Model):
     question = models.CharField(max_length=100000, unique=False, null=False)
     options = models.ManyToManyField("Options")
     user = models.ForeignKey(User, on_delete=models.PROTECT, null=True)
-    answer = models.ForeignKey(Options, related_name="correct", on_delete=models.PROTECT)
+    answer = models.ForeignKey(
+        Options, related_name="correct", on_delete=models.PROTECT
+    )
 
 
 class UserGames(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    game_code = models.ForeignKey(Game,
-                                  on_delete=models.PROTECT)
+    game_code = models.ForeignKey(Game, on_delete=models.PROTECT)
     category = models.ForeignKey(Category, on_delete=models.PROTECT)
     user_name = models.CharField(max_length=100, null=False)
     score = models.PositiveIntegerField(
@@ -50,3 +52,12 @@ class UserGames(models.Model):
     )
 
 
+class NewsLetter(models.Model):
+    email = models.EmailField(null=False, unique=True, blank=False)
+    created_at = models.DateTimeField(default=datetime.now, blank=True)
+
+
+class ContactUs(models.Model):
+    email = models.EmailField(null=False, blank=False, unique=True)
+    full_name = models.CharField(max_length=100, null=False, blank=False, null=False)
+    message = models.TextField(null=False)
