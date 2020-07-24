@@ -33,7 +33,7 @@ newsletterRouter = routers.DefaultRouter()
 newsletterRouter.register(r"", NewsletterView, basename="newsletter")
 
 contactUsRouter = routers.DefaultRouter()
-contactUsRouter.register(r"", ContactUsiew, basename="contactus")
+contactUsRouter.register(r"", ContactUsView, basename="contactus")
 
 
 urlpatterns = [
@@ -43,5 +43,5 @@ urlpatterns = [
     url(r"^question/", include(QuestionRouter.urls)),
     url(r"^usergame/", include(userGameRouter.urls)),
     url(r"^newsletter/", include(newsletterRouter.urls)),
-    url(r"^contactus/", include(newsletterRouter.urls)),
+    url(r"^contactus/", include(contactUsRouter.urls)),
 ]
