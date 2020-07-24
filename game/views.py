@@ -1242,7 +1242,7 @@ class ContactUsView(viewsets.GenericViewSet):
     def get_queryset(self):
         return None
 
-    @action(detail=False, methods=["post"])
+    @action(detail=False, methods=["post"], url_path="message")
     def send_contact_info(self, request):
         if "email" not in request.data:
             return JsonResponse(
