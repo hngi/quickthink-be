@@ -1264,4 +1264,4 @@ class ContactUsView(viewsets.GenericViewSet):
             message=request.data["message"],
         )
         contactUs.save()
-        return JsonResponse({"data": "Message sent"}, status=status.HTTP_200_OK)
+        return JsonResponse({"message": "Message sent"}, status=status.HTTP_200_OK)
