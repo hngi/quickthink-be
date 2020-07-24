@@ -59,5 +59,5 @@ class NewsLetter(models.Model):
 
 class ContactUs(models.Model):
     email = models.EmailField(null=False, blank=False, unique=True)
-    full_name = models.CharField(max_length=100, null=False, blank=False, null=False)
+    full_name = models.CharField(max_length=100, null=False, blank=False)
     message = models.TextField(null=False)
