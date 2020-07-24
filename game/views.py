@@ -1,13 +1,13 @@
 import html
 import random
-
+from rest_framework import status
 import requests
 from django.contrib.auth import authenticate, login, get_user_model, logout
 from django.contrib.auth.models import User
 from django.http import JsonResponse, HttpResponse
 
 # Create your views here.
-from rest_framework import status, viewsets
+from rest_framework import viewsets
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import (
     api_view,
@@ -20,7 +20,7 @@ from rest_framework.response import Response
 
 from django.db import IntegrityError
 
-from game.models import Game, Question, UserGames, Options, Category
+from .models import Game, Question, UserGames, Options, Category
 from .serializers import (
     GameSerializer,
     QuestionSerializer,
@@ -49,7 +49,7 @@ class UserGameView(viewsets.GenericViewSet):
             question = CategorySerializer(data, many=True).data
             return JsonResponse({"data": question}, status=status.HTTP_200_OK)
         except Exception as error:
-            return JsonResponse({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=["post"],url_path="valid")
     def check_if_game_code_isValid(self, request):
@@ -66,8 +66,8 @@ class UserGameView(viewsets.GenericViewSet):
             gameData = GameSerializer(game).data
             if gameData["user_name"] == request.data["user_name"]:
                 return JsonResponse(
-                    {"error": "Admin cannot play the game"},
-                    status=status.HTTP_400_BAD_REQUEST,
+                    {"error": "Game creator cannot play the game"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
             if gameData["active"]:
                 ug = UserGames.objects.filter(
@@ -76,8 +76,8 @@ class UserGameView(viewsets.GenericViewSet):
                 )
                 if len(ug) != 0:
                     return JsonResponse(
-                        {"error": "Already played game"},
-                        status=status.HTTP_400_BAD_REQUEST,
+                        {"error": "User name is already taken"},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     )
                 qList = Question.objects.filter(
                     category=gameData["category"]
@@ -113,20 +113,20 @@ class UserGameView(viewsets.GenericViewSet):
                         status=status.HTTP_200_OK,
                     )
                 return JsonResponse(
-                    {"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST
+                    {"error": serializer.errors}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
             else:
                 return JsonResponse(
                     {"error": "Game code is expired"},
-                    status=status.HTTP_400_BAD_REQUEST,
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
         except Game.DoesNotExist:
             return JsonResponse(
-                {"error": "Invalid game code"}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "Invalid game code"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         except Exception as error:
             return
-            JsonResponse({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+            JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=["post"],url_path="play")
     def check_if_user_can_play_game_code(self, request):
@@ -143,8 +143,8 @@ class UserGameView(viewsets.GenericViewSet):
             gameData = GameSerializer(game).data
             if gameData["user_name"] == request.data["user_name"]:
                 return JsonResponse(
-                    {"error": "User cannot play the game"},
-                    status=status.HTTP_400_BAD_REQUEST,
+                    {"error": "Game creator cannot play the game"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
             if gameData["active"]:
                 ug = UserGames.objects.filter(
@@ -153,8 +153,8 @@ class UserGameView(viewsets.GenericViewSet):
                 )
                 if len(ug) != 0:
                     return JsonResponse(
-                        {"error": "Already played game"},
-                        status=status.HTTP_400_BAD_REQUEST,
+                        {"error": "User name is already taken "},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     )
                 return JsonResponse(
                     {"data": "User can play game"}, status=status.HTTP_200_OK
@@ -162,15 +162,15 @@ class UserGameView(viewsets.GenericViewSet):
             else:
                 return JsonResponse(
                     {"error": "Game code is expired"},
-                    status=status.HTTP_400_BAD_REQUEST,
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
         except Game.DoesNotExist:
             return JsonResponse(
-                {"error": "Invalid game code"}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "Invalid game code"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         except Exception as error:
             return
-            JsonResponse({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+            JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=["post"],url_path='score/increment/(?P<user_game_id>[^/.]+)')
     def update_score_usergame(self, request,user_game_id):
@@ -183,10 +183,10 @@ class UserGameView(viewsets.GenericViewSet):
             return JsonResponse({"data": ugSerializer}, status=status.HTTP_200_OK)
         except UserGames.DoesNotExist:
             return JsonResponse(
-                {"error": "Invalid user_game_id"}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "Invalid user game id"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         except Exception as error:
-            return JsonResponse({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=["post"],url_path='score/increment/(?P<user_game_id>[^/.]+)/(?P<no_answers_crct>[^/.]+)')
     def update_score_count_usergame(self, request,*args, **kwargs):
@@ -199,10 +199,10 @@ class UserGameView(viewsets.GenericViewSet):
             return JsonResponse({"data": ugSerializer}, status=status.HTTP_200_OK)
         except UserGames.DoesNotExist:
             return JsonResponse(
-                {"error": "Invalid user_game_id"}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "Invalid user game_id"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         except Exception as error:
-            return JsonResponse({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=["post"],url_path='leaderboard/(?P<game_code>[^/.]+)/(?P<n>[^/.]+)')
     def get_leader_board_game_code(self, request,game_code,n):
@@ -216,7 +216,20 @@ class UserGameView(viewsets.GenericViewSet):
             userGames = UserGamesSerializer(data, many=True).data
             return JsonResponse({"data": userGames}, status=status.HTTP_200_OK)
         except Exception as error:
-            return JsonResponse({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=["post"], url_path='leaderboard/all/(?P<n>[^/.]+)$')
+    def get_leader_board_game_code(self, request, n):
+        try:
+            data = UserGames.objects.filter(
+            ).order_by("-score")
+            if n is not None:
+                n = int(n)
+                data = data[:n]
+            userGames = UserGamesSerializer(data, many=True).data
+            return JsonResponse({"data": userGames}, status=status.HTTP_200_OK)
+        except Exception as error:
+            return JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class UserAPIs(viewsets.GenericViewSet):
@@ -253,14 +266,14 @@ class UserAPIs(viewsets.GenericViewSet):
         user = User.objects.filter(username=request.data["username"])
         if len(user) != 0:
             return JsonResponse(
-                {"error": "Username already exists"}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "Username already exists"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         # Validating if the email already exists
         user = User.objects.filter(email=request.data["email"])
         if len(user) != 0:
             return JsonResponse(
                 {"error": "Email address already exists"},
-                status=status.HTTP_400_BAD_REQUEST,
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         # Checking if all the valid fields are entere
         VALID_USER_FIELDS = [f.name for f in get_user_model()._meta.fields]
@@ -274,10 +287,10 @@ class UserAPIs(viewsets.GenericViewSet):
             }
             user = get_user_model().objects.create_user(**user_data)
             return Response(
-                UserSerializer(instance=user).data, status=status.HTTP_201_CREATED
+                UserSerializer(instance=user).data, status=status.HTTP_200_OK
             )
         else:
-            return Response(serialized.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(serialized.errors, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=["post"])
     def login(self, request):
@@ -322,15 +335,15 @@ class UserAPIs(viewsets.GenericViewSet):
                 except IntegrityError:
                     return JsonResponse(
                         {"error": "User is already logged in"},
-                        status=status.HTTP_400_BAD_REQUEST,
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     )
             else:
                 return JsonResponse(
-                    {"error": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST
+                    {"error": "Invalid credentials"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
         except User.DoesNotExist:
             return JsonResponse(
-                {"error": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "Invalid credentials"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
     @action(detail=False, methods=["put"])
@@ -359,10 +372,10 @@ class UserAPIs(viewsets.GenericViewSet):
         except User.DoesNotExist:
             # if the user does not exist
             return JsonResponse(
-                {"error": "Invalid email address"}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "Invalid email address"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         except Exception as error:
-            return JsonResponse({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class UserDetailsApi(viewsets.GenericViewSet):
@@ -409,7 +422,7 @@ class UserDetailsApi(viewsets.GenericViewSet):
                 {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
             )
         except Exception as error:
-            return JsonResponse({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=["delete"])
     def delete(self, request):
@@ -443,7 +456,7 @@ class UserDetailsApi(viewsets.GenericViewSet):
                 {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
             )
         except Exception as error:
-            return JsonResponse({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=["put"])
     def reset_password(self, request):
@@ -467,7 +480,7 @@ class UserDetailsApi(viewsets.GenericViewSet):
             if not user.check_password(request.data["current_password"]):
                 return JsonResponse(
                     {"error": "Password entered is incorrect"},
-                    status=status.HTTP_400_BAD_REQUEST,
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
             # setting a new password if the current password is matching
             user.set_password(request.data["password"])
@@ -480,7 +493,7 @@ class UserDetailsApi(viewsets.GenericViewSet):
                 {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
             )
         except Exception as error:
-            return JsonResponse({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class QuestionView(viewsets.GenericViewSet):
@@ -534,26 +547,26 @@ class QuestionView(viewsets.GenericViewSet):
         cats = Category.objects.filter(name=question["category"])
         if len(cats) == 0:
             return JsonResponse(
-                {"error": "Enter valid category"}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "Enter valid category"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         if "answer" not in question:
             return JsonResponse(
                 {"error": "There is no answer "},
-                status=status.HTTP_400_BAD_REQUEST,
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         try:
             index = question["options"].index(question["answer"])
         except Exception as error:
             return JsonResponse(
                 {"error": "There is no option with the answer "},
-                status=status.HTTP_400_BAD_REQUEST,
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         category = CategorySerializer(cats, many=True).data
         options = question["options"]
         if len(options) != 4:
             return JsonResponse(
                 {"error": "There should be exaclty 4 options"},
-                status=status.HTTP_400_BAD_REQUEST,
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         optionsList = []
         for (
@@ -584,7 +597,7 @@ class QuestionView(viewsets.GenericViewSet):
         if serializer.is_valid():
             serializer.save()
             return JsonResponse({"data": serializer.data}, status=status.HTTP_200_OK)
-        return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse(serializer.errors, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=["PUT"], url_path="update")
     def update_question(self, request):
@@ -601,7 +614,7 @@ class QuestionView(viewsets.GenericViewSet):
         if len(questionData) == 0:
             return JsonResponse(
                 {"error": "There is no question with this id"},
-                status=status.HTTP_401_UNAUTHORIZED,
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         ques = QuestionSerializer(questionData[0], many=False).data
         print(ques)
@@ -610,13 +623,13 @@ class QuestionView(viewsets.GenericViewSet):
                 {
                     "error": "Cannot update the question .The questions can only be updated by the user who created"
                 },
-                status=status.HTTP_401_UNAUTHORIZED,
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
         cats = Category.objects.filter(name=question["category"])
         if len(cats) == 0:
             return JsonResponse(
-                {"error": "Enter valid category"}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "Enter valid category"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         if "answer" not in question:
             return JsonResponse(
@@ -628,7 +641,7 @@ class QuestionView(viewsets.GenericViewSet):
         except Exception as error:
             return JsonResponse(
                 {"error": "There is no option with the answer "},
-                status=status.HTTP_400_BAD_REQUEST,
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
         category = CategorySerializer(cats, many=True).data
@@ -636,7 +649,7 @@ class QuestionView(viewsets.GenericViewSet):
         if len(options) != 4:
             return JsonResponse(
                 {"error": "There should be exaclty 4 options"},
-                status=status.HTTP_400_BAD_REQUEST,
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         optionsList = []
         for option in options:
@@ -774,7 +787,7 @@ class QuestionView(viewsets.GenericViewSet):
         if len(questionData) == 0:
             return JsonResponse(
                 {"error": "There is no question with this id"},
-                status=status.HTTP_401_UNAUTHORIZED,
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         ques = QuestionSerializer(questionData[0], many=False).data
         if ques["user"] != user.id:
@@ -782,12 +795,12 @@ class QuestionView(viewsets.GenericViewSet):
                 {
                     "error": "Cannot delete the question .The questions can only be deleted by the user who created"
                 },
-                status=status.HTTP_401_UNAUTHORIZED,
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         Question.objects.filter(id=request.data["id"]).delete()
         return JsonResponse(
             {"question": "Question deleted sucessfully"},
-            status=status.HTTP_204_NO_CONTENT,
+            status=status.HTTP_200_OK,
         )
 
 
@@ -818,7 +831,7 @@ class GameCode(viewsets.GenericViewSet):
         print(category)
         if len(category) == 0:
             return JsonResponse(
-                {"error": "Category does not exist"}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "Category does not exist"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
         data = {
@@ -831,7 +844,7 @@ class GameCode(viewsets.GenericViewSet):
 
         if not game_serializer.is_valid():
             return JsonResponse(
-                game_serializer.errors, status=status.HTTP_400_BAD_REQUEST
+                game_serializer.errors, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
         game_serializer.save()
@@ -855,7 +868,7 @@ class GameCode(viewsets.GenericViewSet):
             return JsonResponse({"data": gameData}, status=status.HTTP_200_OK)
         except Game.DoesNotExist:
             return JsonResponse(
-                {"error": "Invalid game code"}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "Invalid game code"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
 
@@ -904,8 +917,8 @@ class CategoryView(viewsets.GenericViewSet):
         if createcategory.is_valid():
             createcategory.save()
             print(createcategory.data)
-            return Response(createcategory.data, status=status.HTTP_201_CREATED)
-        return Response(createcategory.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(createcategory.data, status=status.HTTP_200_OK)
+        return Response(createcategory.errors, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=["put"], url_path="update")
     def update_category(self, request):
@@ -936,7 +949,7 @@ class CategoryView(viewsets.GenericViewSet):
         if len(categoryData) == 0:
             return JsonResponse(
                 {"error": "There is no category with this name"},
-                status=status.HTTP_401_UNAUTHORIZED,
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         cat = CategorySerializer(categoryData[0], many=False).data
         # checking if this category is created by authenticated user only
@@ -945,7 +958,7 @@ class CategoryView(viewsets.GenericViewSet):
                 {
                     "error": "Cannot delete the category .It can only be deleted by the user who created"
                 },
-                status=status.HTTP_401_UNAUTHORIZED,
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         # updating the category with new name
         # here on updating the category with new name it creates a new one without modifying the current one
@@ -962,7 +975,7 @@ class CategoryView(viewsets.GenericViewSet):
         Category.objects.filter(name=request.data["name"]).delete()
         return JsonResponse(
             {"category": "Category name updated sucessfully"},
-            status=status.HTTP_201_CREATED,
+            status=status.HTTP_200_OK,
         )
 
     @action(detail=False, methods=["delete"], url_path="delete/(?P<category>[^/.]+)")
@@ -986,7 +999,7 @@ class CategoryView(viewsets.GenericViewSet):
         if len(categoryData) == 0:
             return JsonResponse(
                 {"error": "There is no category with this name"},
-                status=status.HTTP_401_UNAUTHORIZED,
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         cat = CategorySerializer(categoryData[0], many=False).data
         # checking if the category is created by the user who is logged in
@@ -995,7 +1008,7 @@ class CategoryView(viewsets.GenericViewSet):
                 {
                     "error": "Cannot delete the category .It can only be deleted by the user who created"
                 },
-                status=status.HTTP_401_UNAUTHORIZED,
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         categoryData = Category.objects.get(name=name)
         # checking if the questions are created in this category
@@ -1014,20 +1027,20 @@ class CategoryView(viewsets.GenericViewSet):
                 {
                     "error": "Cannot delete the category .Some players have played the game"
                 },
-                status=status.HTTP_401_UNAUTHORIZED,
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         # checking if the any game is created in this category
         game = Game.objects.filter(category=categoryData)
         if len(game) != 0:
             return JsonResponse(
                 {"error": "Cannot delete the category .Games are created"},
-                status=status.HTTP_401_UNAUTHORIZED,
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         # if all the above conditions are applied the category then  delete category
         Category.objects.filter(name=name).delete()
         return JsonResponse(
             {"category": "Category name deleted sucessfully"},
-            status=status.HTTP_204_NO_CONTENT,
+            status=status.HTTP_200_OK,
         )
 
     @action(detail=False, methods=["get"], url_path="list/user")
@@ -1050,4 +1063,4 @@ class CategoryView(viewsets.GenericViewSet):
             question = CategorySerializer(data, many=True).data
             return JsonResponse({"data": question}, status=status.HTTP_200_OK)
         except Exception as error:
-            return JsonResponse({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

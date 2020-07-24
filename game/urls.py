@@ -27,6 +27,9 @@ categoryRouter.register(r"", CategoryView, basename="game")
 userGameRouter = routers.DefaultRouter()
 userGameRouter.register(r"", UserGameView, basename="userGame")
 
+
+
+
 urlpatterns = [
     url(r"^game/", include(router.urls)),
     url(r"^user/", include(userRouter.urls)),
