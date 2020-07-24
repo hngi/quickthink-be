@@ -20,7 +20,15 @@ from rest_framework.response import Response
 
 from django.db import IntegrityError
 
-from game.models import Game, Question, UserGames, Options, Category
+from game.models import (
+    Game,
+    Question,
+    UserGames,
+    Options,
+    Category,
+    ContactUs,
+    Newsletter,
+)
 from .serializers import (
     GameSerializer,
     QuestionSerializer,
@@ -30,6 +38,8 @@ from .serializers import (
     UserSerializer,
     ResetUserPasswordSerializer,
     CategoryUpdateSerializer,
+    NewsletterSerializer,
+    ContactUsSerializer,
 )
 
 from rest_framework.authtoken.models import Token
@@ -51,7 +61,7 @@ class UserGameView(viewsets.GenericViewSet):
         except Exception as error:
             return JsonResponse({"error": error}, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=False, methods=["post"],url_path="valid")
+    @action(detail=False, methods=["post"], url_path="valid")
     def check_if_game_code_isValid(self, request):
         if "game_code" not in request.data:
             return JsonResponse(
@@ -128,7 +138,7 @@ class UserGameView(viewsets.GenericViewSet):
             return
             JsonResponse({"error": error}, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=False, methods=["post"],url_path="play")
+    @action(detail=False, methods=["post"], url_path="play")
     def check_if_user_can_play_game_code(self, request):
         if "game_code" not in request.data:
             return JsonResponse(
@@ -172,8 +182,12 @@ class UserGameView(viewsets.GenericViewSet):
             return
             JsonResponse({"error": error}, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=False, methods=["post"],url_path='score/increment/(?P<user_game_id>[^/.]+)')
-    def update_score_usergame(self, request,user_game_id):
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="score/increment/(?P<user_game_id>[^/.]+)",
+    )
+    def update_score_usergame(self, request, user_game_id):
         try:
             ug = UserGames.objects.get(id=user_game_id)
             ug.score = ug.score + 1
@@ -188,11 +202,15 @@ class UserGameView(viewsets.GenericViewSet):
         except Exception as error:
             return JsonResponse({"error": error}, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=False, methods=["post"],url_path='score/increment/(?P<user_game_id>[^/.]+)/(?P<no_answers_crct>[^/.]+)')
-    def update_score_count_usergame(self, request,*args, **kwargs):
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="score/increment/(?P<user_game_id>[^/.]+)/(?P<no_answers_crct>[^/.]+)",
+    )
+    def update_score_count_usergame(self, request, *args, **kwargs):
         try:
-            ug = UserGames.objects.get(id=kwargs['user_game_id'])
-            ug.score = ug.score + int(kwargs['no_answers_crct'])
+            ug = UserGames.objects.get(id=kwargs["user_game_id"])
+            ug.score = ug.score + int(kwargs["no_answers_crct"])
             ug.save()
             # ug = UserGames.objects.filter(id=request.data['user_game_id']).update(score=F['score'] + 1)
             ugSerializer = UserGamesSerializer(ug, many=False).data
@@ -204,12 +222,14 @@ class UserGameView(viewsets.GenericViewSet):
         except Exception as error:
             return JsonResponse({"error": error}, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=False, methods=["post"],url_path='leaderboard/(?P<game_code>[^/.]+)/(?P<n>[^/.]+)')
-    def get_leader_board_game_code(self, request,game_code,n):
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="leaderboard/(?P<game_code>[^/.]+)/(?P<n>[^/.]+)",
+    )
+    def get_leader_board_game_code(self, request, game_code, n):
         try:
-            data = UserGames.objects.filter(
-                game_code=game_code
-            ).order_by("-score")
+            data = UserGames.objects.filter(game_code=game_code).order_by("-score")
             if n is not None:
                 n = int(n)
                 data = data[:n]
@@ -302,8 +322,8 @@ class UserAPIs(viewsets.GenericViewSet):
             # If the username matches in any of the user doc
             # checking if the passwords are matching
             if (
-                    user is not None
-                    and user.check_password(request.data["password"]) == True
+                user is not None
+                and user.check_password(request.data["password"]) == True
             ):
                 # deleting the token if the user has already one
                 token = Token.objects.filter(user=user)
@@ -538,8 +558,7 @@ class QuestionView(viewsets.GenericViewSet):
             )
         if "answer" not in question:
             return JsonResponse(
-                {"error": "There is no answer "},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"error": "There is no answer "}, status=status.HTTP_400_BAD_REQUEST,
             )
         try:
             index = question["options"].index(question["answer"])
@@ -557,7 +576,7 @@ class QuestionView(viewsets.GenericViewSet):
             )
         optionsList = []
         for (
-                option
+            option
         ) in options:  # creates an option list and inserts all options into the list
             optionData = Options.objects.filter(option=option)
             if len(optionData) == 0:
@@ -620,8 +639,7 @@ class QuestionView(viewsets.GenericViewSet):
             )
         if "answer" not in question:
             return JsonResponse(
-                {"error": "There is no answer "},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"error": "There is no answer "}, status=status.HTTP_400_BAD_REQUEST,
             )
         try:
             index = question["options"].index(question["answer"])
@@ -822,9 +840,9 @@ class GameCode(viewsets.GenericViewSet):
             )
 
         data = {
-            'category': request.data['category'],
-            'user_name':request.data['user_name'],
-            'active':True
+            "category": request.data["category"],
+            "user_name": request.data["user_name"],
+            "active": True,
         }
         # creating game code given a username and category
         game_serializer = GameSerializer(data=data)
@@ -1051,3 +1069,81 @@ class CategoryView(viewsets.GenericViewSet):
             return JsonResponse({"data": question}, status=status.HTTP_200_OK)
         except Exception as error:
             return JsonResponse({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class NewsletterView(viewsets.GenericViewSet):
+    serializer_class = NewsletterSerializer
+    permission_classes = (AllowAny,)
+
+    def get_queryset(self):
+        return None
+
+    @action(detail=False, methods=["post"], url_path="subscribe")
+    def add_to_newsletter(self, request):
+        if "email" not in request.data:
+            return JsonResponse(
+                {"error": "Enter your email"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        is_subscribed = len(Newsletter.objects.filter(email=request.data["email"])) != 0
+        if is_subscribed:
+            return JsonResponse(
+                {"error": "You have already subscribed to our Newsletter"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        newsletter = Newsletter(email=request.data["email"])
+        newsletter.save()
+        newsletterSerializer = NewsletterSerializer(newsletter)
+        return JsonResponse(
+            {"data": newsletterSerializer.data, "message": "Successfully subscribed",},
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=["delete"], url_path="unsubscribe")
+    def unsubscribe_newsletter(self, request):
+        if "email" not in request.data:
+            return JsonResponse(
+                {"error": "Please enter your email"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            newsletter = Newsletter.objects.get(email=request.data["email"])
+        except Newsletter.DoesNotExist:
+            return JsonResponse(
+                {"error": "This email is not subscribed to the Newsletter"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        newsletter.delete()
+        return JsonResponse(
+            {"message": "Successfully unsubscribed"}, status=status.HTTP_200_OK,
+        )
+
+
+class ContactUsView(viewsets.GenericViewSet):
+    serializer_class = ContactUsSerializer
+    permission_classes = (AllowAny,)
+
+    def get_queryset(self):
+        return None
+
+    @action(detail=False, methods=["post"])
+    def send_contact_info(self, request):
+        if "email" not in request.data:
+            return JsonResponse(
+                {"error": "Please enter your email"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if "full_name" not in request.data:
+            return JsonResponse(
+                {"error": "Please enter your Full name"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if "message" not in request.data:
+            return JsonResponse(
+                {"error": "Please enter your message"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        contactUs = ContactUs(
+            email=request.data["email"],
+            full_name=request.data["full_name"],
+            message=request.data["message"],
+        )
+        contactUs.save()
+        return JsonResponse({"data": "Message sent"}, status=status.HTTP_200_OK)
