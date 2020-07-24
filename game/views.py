@@ -20,7 +20,15 @@ from rest_framework.response import Response
 
 from django.db import IntegrityError
 
-from game.models import Game, Question, UserGames, Options, Category
+from game.models import (
+    Game,
+    Question,
+    UserGames,
+    Options,
+    Category,
+    Newsletter,
+    ContactUs,
+)
 from game.serializers import (
     GameSerializer,
     QuestionSerializer,
