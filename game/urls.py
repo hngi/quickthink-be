@@ -11,7 +11,7 @@ from .views import (
     UserGameView,
     NewsletterView,
     ContactUsView,
-)
+    UserGameLeaderBoardView)
 
 userRouter = routers.DefaultRouter()
 userRouter.register(r"", UserAPIs, basename="user")
@@ -44,4 +44,5 @@ urlpatterns = [
     url(r"^usergame/", include(userGameRouter.urls)),
     url(r"^newsletter/", include(newsletterRouter.urls)),
     url(r"^contactus/", include(contactUsRouter.urls)),
+    path('usergame/leaderboard/paginate',UserGameLeaderBoardView.as_view())
 ]

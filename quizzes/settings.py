@@ -52,6 +52,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'quizzes.middleware.cors.CorsMiddleware'
 ]
 
 ROOT_URLCONF = 'quizzes.urls'
@@ -138,17 +139,17 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.TokenAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticated',)
+        'rest_framework.permissions.IsAuthenticated',),
 }
 
-#Swagger Authorization settings
+# Swagger Authorization settings
 
 SWAGGER_SETTINGS = {
-    'SECURITY_DEFINITIONS' : {
-        "Auth token here, eg: Bearer":{
-            "type":"apiKey",
-            "name":"Authorization",
-            "in":"header"
+    'SECURITY_DEFINITIONS': {
+        "Auth token here, eg: Bearer": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
         }
     }
 }
