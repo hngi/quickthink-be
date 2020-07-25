@@ -1,6 +1,6 @@
 import html
 import random
-from rest_framework import status
+from rest_framework import status, generics
 import requests
 from django.contrib.auth import authenticate, login, get_user_model, logout
 from django.contrib.auth.models import User
@@ -20,8 +20,8 @@ from rest_framework.response import Response
 
 from django.db import IntegrityError
 
-
-from .models import Game, Question, UserGames, Options, Category,ContactUs,Newsletter
+from quizzes.pagination.paginate import StandardResultsSetPagination
+from .models import Game, Question, UserGames, Options, Category, ContactUs, Newsletter
 
 from .serializers import (
     GameSerializer,
@@ -55,7 +55,7 @@ class UserGameView(viewsets.GenericViewSet):
         except Exception as error:
             return JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @action(detail=False, methods=["post"], url_path="valid")
+    @action(detail=False, methods=["post"], url_path="play")
     def check_if_game_code_isValid(self, request):
         if "game_code" not in request.data:
             return JsonResponse(
@@ -132,7 +132,7 @@ class UserGameView(viewsets.GenericViewSet):
             return
             JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @action(detail=False, methods=["post"], url_path="play")
+    @action(detail=False, methods=["post"], url_path="valid")
     def check_if_user_can_play_game_code(self, request):
         if "game_code" not in request.data:
             return JsonResponse(
@@ -216,27 +216,34 @@ class UserGameView(viewsets.GenericViewSet):
         except Exception as error:
             return JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @action(
-        detail=False,
-        methods=["post"],
-        url_path="leaderboard/(?P<game_code>[^/.]+)/(?P<n>[^/.]+)",
-    )
-    def get_leader_board_game_code(self, request, game_code, n):
+    @action(detail=False, methods=["post"], url_path='leaderboard/inf/(?P<n>[^/.]+)')
+    def get_leader_board(self, request, n=None):
         try:
-            data = UserGames.objects.filter(game_code=game_code).order_by("-score")
             if n is not None:
                 n = int(n)
-                data = data[:n]
+            else:
+                n = 10
+            options = {}
+            if "id" in request.data:
+                options['id__gt'] = request.data['id']
+            if "score" in request.data:
+                options['score__lte'] = request.data['score']
+            data = UserGames.objects.filter(**options
+                                            ).order_by("-score", "id")[:n]
+
             userGames = UserGamesSerializer(data, many=True).data
             return JsonResponse({"data": userGames}, status=status.HTTP_200_OK)
         except Exception as error:
             return JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @action(detail=False, methods=["post"], url_path='leaderboard/all/(?P<n>[^/.]+)$')
-    def get_leader_board_game_code(self, request, n):
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="leaderboard/game/(?P<game_code>[^/.]+)/(?P<n>[^/.]+)",
+    )
+    def get_leader_board_game_code(self, request, game_code, n):
         try:
-            data = UserGames.objects.filter(
-            ).order_by("-score")
+            data = UserGames.objects.filter(game_code=game_code).order_by("-score")
             if n is not None:
                 n = int(n)
                 data = data[:n]
@@ -314,7 +321,7 @@ class UserAPIs(viewsets.GenericViewSet):
         """
         if "username" not in request.data:
             return JsonResponse(
-                {"error": "Enter user_name"}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "Enter username"}, status=status.HTTP_400_BAD_REQUEST
             )
         if "password" not in request.data:
             return JsonResponse(
@@ -329,8 +336,8 @@ class UserAPIs(viewsets.GenericViewSet):
             # If the username matches in any of the user doc
             # checking if the passwords are matching
             if (
-                user is not None
-                and user.check_password(request.data["password"]) == True
+                    user is not None
+                    and user.check_password(request.data["password"]) == True
             ):
                 # deleting the token if the user has already one
                 token = Token.objects.filter(user=user)
@@ -586,7 +593,7 @@ class QuestionView(viewsets.GenericViewSet):
             )
         optionsList = []
         for (
-            option
+                option
         ) in options:  # creates an option list and inserts all options into the list
             optionData = Options.objects.filter(option=option)
             if len(optionData) == 0:
@@ -1104,7 +1111,7 @@ class NewsletterView(viewsets.GenericViewSet):
         newsletter.save()
         newsletterSerializer = NewsletterSerializer(newsletter)
         return JsonResponse(
-            {"data": newsletterSerializer.data, "message": "Successfully subscribed",},
+            {"data": newsletterSerializer.data, "message": "Successfully subscribed", },
             status=status.HTTP_200_OK,
         )
 
@@ -1157,3 +1164,10 @@ class ContactUsView(viewsets.GenericViewSet):
         )
         contactUs.save()
         return JsonResponse({"data": "Message sent"}, status=status.HTTP_200_OK)
+
+
+class UserGameLeaderBoardView(generics.ListAPIView):
+    permission_classes = (AllowAny,)
+    queryset = UserGames.objects.all().order_by("-score", "id")
+    serializer_class = UserGamesSerializer
+    pagination_class = StandardResultsSetPagination
