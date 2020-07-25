@@ -33,4 +33,6 @@ urlpatterns = [
     path('', include('game.urls')),
     path('', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     url(r'^.*/$', custom404, name='error404'),
+    path('jet_api/', include('jet_django.urls')),
+    path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
 ]
