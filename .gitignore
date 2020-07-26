@@ -2,7 +2,7 @@ env
 .idea
 *.pyc
 game/__pycache__/*.pyc
-#db.sqlite3
+db.sqlite3
 .vscode
 __pycache__
 venv
