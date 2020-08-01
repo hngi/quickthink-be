@@ -5,7 +5,7 @@ from game.views import create_a_game_code, check_if_game_code_isValid, end_game,
     get_leader_board_game_code, update_score_count_usergame, get_all_category, create_category, \
     create_question, login_user, register, get_user_data, forgot_password, change_password, get_questions, \
     update_question, delete_question, delete_category, update_category, get_all_category_user, get_questions_user, \
-    check_if_user_can_play_game_code, delete_user, opendb
+    check_if_user_can_play_game_code, delete_user, opendb, get_all_subcategory_user
 
 urlpatterns = [
     path('game', create_a_game_code),
@@ -32,4 +32,5 @@ urlpatterns = [
     path('game/questions/user',get_questions_user),
     path('game/category/user',get_all_category_user),
     path('opendb', opendb),
+    path('game/category/subcategory', get_all_subcategory_user),
 ]
