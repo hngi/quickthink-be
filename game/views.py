@@ -57,80 +57,105 @@ class UserGameView(viewsets.GenericViewSet):
 
     @action(detail=False, methods=["post"], url_path="play")
     def check_if_game_code_isValid(self, request):
-        if "game_code" not in request.data:
-            return JsonResponse(
-                {"error": "Enter game_code"}, status=status.HTTP_400_BAD_REQUEST
-            )
-        if "user_name" not in request.data:
-            return JsonResponse(
-                {"error": "Enter user_name"}, status=status.HTTP_400_BAD_REQUEST
-            )
-        try:
-            game = Game.objects.get(game_code=request.data["game_code"])
+        if "isGeneral" not in request.data:
+            if "game_code" not in request.data:
+                return JsonResponse(
+                    {"error": "Enter game_code"}, status=status.HTTP_400_BAD_REQUEST
+                )
+            if "user_name" not in request.data:
+                return JsonResponse(
+                    {"error": "Enter user_name"}, status=status.HTTP_400_BAD_REQUEST
+                )
+            game = Game.objects.get(game_code=request.data['game_code'])
             gameData = GameSerializer(game).data
-            if gameData["user_name"] == request.data["user_name"]:
-                return JsonResponse(
-                    {"error": "Game creator cannot play the game"},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
-            if gameData["active"]:
-                ug = UserGames.objects.filter(
-                    game_code=request.data["game_code"],
-                    user_name=request.data["user_name"],
-                )
-                if len(ug) != 0:
-                    return JsonResponse(
-                        {"error": "User name is already taken"},
-                        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    )
-                qList = Question.objects.filter(
-                    category=gameData["category"]
-                ).values_list("id", flat=True)
-                qRand = random.sample(list(qList), min(len(qList), 10))
-                questions = Question.objects.filter(id__in=qRand)
-                questionData = QuestionSerializer(questions, many=True).data
-                questions = []
-                for question in questionData:
-                    options = []
-                    for option in question["options"]:
-                        optionQuery = Options.objects.get(option=option)
-                        optionData = OptionsSerializer(optionQuery, many=False).data
-                        options.append(optionData["option"])
-                    question["options"] = options
-                    questions.append(question)
-                serializer = UserGamesSerializer(
-                    data={
-                        "game_code": request.data["game_code"],
-                        "category": gameData["category"],
-                        "user_name": request.data["user_name"],
-                    }
-                )
-                if serializer.is_valid():
-                    serializer.save()
-                    return JsonResponse(
-                        {
-                            "data": {
-                                "questions": questions,
-                                "usergameData": serializer.data,
-                            }
-                        },
-                        status=status.HTTP_200_OK,
-                    )
-                return JsonResponse(
-                    {"error": serializer.errors}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
+            category = gameData['category']
+            if gameData['user_name'] == request.data['user_name']:
+                return JsonResponse({"error": "Admin cannot play the game"}, status=status.HTTP_400_BAD_REQUEST)
+            if not gameData['active']:
+                return JsonResponse({"error": "Game code is expired"}, status=status.HTTP_400_BAD_REQUEST)
             else:
+                ug = UserGames.objects.filter(game_code=request.data['game_code'], user_name=request.data['user_name'])
+                if len(ug) != 0:
+                    return JsonResponse({
+                        "error": "Already played game"
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            data = {
+                'game_code': request.data['game_code'],
+                'category': gameData['category'],
+                'user_name': request.data['user_name']
+            }
+        else:
+            if "email_address" not in request.data:
                 return JsonResponse(
-                    {"error": "Game code is expired"},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    {"error": "Enter email_address"}, status=status.HTTP_400_BAD_REQUEST
                 )
+            if "category" not in request.data:
+                return JsonResponse(
+                    {"error": "Enter category"}, status=status.HTTP_400_BAD_REQUEST
+                )
+            categories = Category.objects.filter(name=request.data['category'])
+            if len(categories) == 0:
+                return JsonResponse(
+                    {"error": "Enter valid category"}, status=status.HTTP_400_BAD_REQUEST
+                )
+            if categories[0].isGeneral:
+                return JsonResponse(
+                    {"error": "Select any sub category og general categroy"}, status=status.HTTP_400_BAD_REQUEST
+                )
+            if categories[0].isSubCategory:
+                parentCategoryId = categories[0].parentCategory
+                allCategories = Category.objects.filter(parentCategory=parentCategoryId)
+                ug = UserGames.objects.filter(email_address=request.data['email_address'], category__in=allCategories)
+                if len(ug) != 0:
+                    return JsonResponse({
+                        "error": "Already played game"
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                else:
+                    ug = UserGames.objects.filter(email_address=request.data['email_address'],
+                                                  category=request.data['category'])
+                    if len(ug) != 0:
+                        return JsonResponse({
+                            "error": "Already played game"
+                        }, status=status.HTTP_400_BAD_REQUEST)
+            category = request.data['category']
+            data = {
+                'category': category,
+                'email_address': request.data['email_address']
+            }
+        try:
+            qList = Question.objects.filter(category=category).values_list('id', flat=True)
+            qRand = random.sample(list(qList), min(len(qList), 10))
+            questions = Question.objects.filter(id__in=qRand)
+            questionData = QuestionSerializer(questions, many=True).data
+            questions = []
+            for question in questionData:
+                options = []
+                for option in question['options']:
+                    optionQuery = Options.objects.get(option=option)
+                    optionData = OptionsSerializer(optionQuery, many=False).data
+                    options.append(optionData['option'])
+                question['options'] = options
+                questions.append(question)
+            serializer = UserGamesSerializer(data=data)
+            if serializer.is_valid():
+                serializer.save()
+                return JsonResponse({
+                    "data": {
+                        'questions': questions,
+                        'usergameData': serializer.data
+                    }
+                }, status=status.HTTP_200_OK)
+            return JsonResponse({
+                "error": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         except Game.DoesNotExist:
-            return JsonResponse(
-                {"error": "Invalid game code"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return JsonResponse({
+                "error": "Invalid game code"
+            }, status=status.HTTP_400_BAD_REQUEST)
         except Exception as error:
             return
-            JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            JsonResponse({"error": error}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=["post"], url_path="valid")
     def check_if_user_can_play_game_code(self, request):
@@ -244,6 +269,43 @@ class UserGameView(viewsets.GenericViewSet):
     def get_leader_board_game_code(self, request, game_code, n):
         try:
             data = UserGames.objects.filter(game_code=game_code).order_by("-score")
+            if n is not None:
+                n = int(n)
+                data = data[:n]
+            userGames = UserGamesSerializer(data, many=True).data
+            return JsonResponse({"data": userGames}, status=status.HTTP_200_OK)
+        except Exception as error:
+            return JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="leaderboard/subcategory/(?P<subcategory>[^/.]+)/(?P<n>[^/.]+)",
+    )
+    def get_leader_board_game_sub(self, request, subcategory, n):
+        try:
+            data = UserGames.objects.filter(category=subcategory).order_by("-score")
+            if n is not None:
+                n = int(n)
+                data = data[:n]
+            userGames = UserGamesSerializer(data, many=True).data
+            return JsonResponse({"data": userGames}, status=status.HTTP_200_OK)
+        except Exception as error:
+            return JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="leaderboard/general-all/(?P<category>[^/.]+)/(?P<n>[^/.]+)",
+    )
+    def get_leader_board_game_code_all(self, request, category, n):
+        try:
+            cat = Category.objects.filter(name=category)
+            if len(cat) == 0:
+                return JsonResponse({"error": "enter valid category"}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                categories = Category.objects.filter(parentCategory=cat[0])
+            data = UserGames.objects.filter(category__in=categories).order_by("-score")
             if n is not None:
                 n = int(n)
                 data = data[:n]
@@ -934,6 +996,27 @@ class CategoryView(viewsets.GenericViewSet):
         # Creating category with name and user
         print(user.id)
         data = {"name": request.data["name"], "user": user.id}
+        if "isGeneral" in request.data:
+            data['isGeneral'] = request.data['isGeneral']
+            if request.data['isGeneral']:
+                pc = Category.objects.filter(isGeneral=request.data['isGeneral'])
+                if len(pc) != 0:
+                    return JsonResponse({
+                        "error": "You cannot have more than 1 general categories"
+                    }, status=status.HTTP_400_BAD_REQUEST)
+        if "isSubCategory" in request.data:
+            data['isSubCategory'] = request.data['isSubCategory']
+            if "parentCategory" in request.data:
+                data['parentCategory'] = request.data['parentCategory']
+                pc = Category.objects.filter(name=request.data['parentCategory'])
+                if len(pc) == 0:
+                    return JsonResponse({
+                        "error": "Enter valid  parentCategory"
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return JsonResponse({
+                    "error": "Enter parent category"
+                }, status=status.HTTP_400_BAD_REQUEST)
         print(data)
         createcategory = CategorySerializer(data=data)
         if createcategory.is_valid():
