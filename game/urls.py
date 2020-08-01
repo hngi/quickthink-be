@@ -10,7 +10,7 @@ from game.views import create_a_game_code, check_if_game_code_isValid, end_game,
 urlpatterns = [
     path('game', create_a_game_code),
     path('game/user/play/check', check_if_user_can_play_game_code),
-    path('game/play', check_if_game_code_isValid), 
+    path('game/play', check_if_game_code_isValid),
     path('game/end', end_game),
     path('game/score', update_score_usergame), 
     path('game/score/count', update_score_count_usergame), 
