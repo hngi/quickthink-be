@@ -56,6 +56,27 @@ def create_category(request):
             'name': request.data['name'],
             'user': user.id
         }
+        if "isGeneral" in request.data:
+            data['isGeneral'] = request.data['isGeneral']
+            if request.data['isGeneral']:
+                pc = Category.objects.filter(isGeneral=request.data['isGeneral'])
+                if len(pc) != 0:
+                    return JsonResponse({
+                        "error": "You cannot have more than 1 general categories"
+                    }, status=status.HTTP_400_BAD_REQUEST)
+        if "isSubCategory" in request.data:
+            data['isSubCategory'] = request.data['isSubCategory']
+            if "parentCategory" in request.data:
+                data['parentCategory'] = request.data['parentCategory']
+                pc = Category.objects.filter(name=request.data['parentCategory'])
+                if len(pc) == 0:
+                    return JsonResponse({
+                        "error": "Enter valid  parentCategory"
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return JsonResponse({
+                    "error": "Enter parent category"
+                }, status=status.HTTP_400_BAD_REQUEST)
         createcategory = CategorySerializer(data=data)
         if createcategory.is_valid():
             createcategory.save()
@@ -288,56 +309,94 @@ def create_a_game_code(request):
 
 @api_view(["POST"])
 def check_if_game_code_isValid(request):
-    if "game_code" not in request.data:
-        return JsonResponse(
-            {"error": "Enter game_code"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    if "user_name" not in request.data:
-        return JsonResponse(
-            {"error": "Enter user_name"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    try:
+    if "isGeneral" not in request.data:
+        if "game_code" not in request.data:
+            return JsonResponse(
+                {"error": "Enter game_code"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if "user_name" not in request.data:
+            return JsonResponse(
+                {"error": "Enter user_name"}, status=status.HTTP_400_BAD_REQUEST
+            )
         game = Game.objects.get(game_code=request.data['game_code'])
         gameData = GameSerializer(game).data
+        category = gameData['category']
         if gameData['user_name'] == request.data['user_name']:
             return JsonResponse({"error": "Admin cannot play the game"}, status=status.HTTP_400_BAD_REQUEST)
-        if gameData['active']:
+        if not gameData['active']:
+            return JsonResponse({"error": "Game code is expired"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
             ug = UserGames.objects.filter(game_code=request.data['game_code'], user_name=request.data['user_name'])
             if len(ug) != 0:
                 return JsonResponse({
                     "error": "Already played game"
                 }, status=status.HTTP_400_BAD_REQUEST)
-            qList = Question.objects.filter(category=gameData['category']).values_list('id', flat=True)
-            qRand = random.sample(list(qList), min(len(qList), 10))
-            questions = Question.objects.filter(id__in=qRand)
-            questionData = QuestionSerializer(questions, many=True).data
-            questions = []
-            for question in questionData:
-                options = []
-                for option in question['options']:
-                    optionQuery = Options.objects.get(option=option)
-                    optionData = OptionsSerializer(optionQuery, many=False).data
-                    options.append(optionData['option'])
-                question['options'] = options
-                questions.append(question)
-            serializer = UserGamesSerializer(data={
-                'game_code': request.data['game_code'],
-                'category': gameData['category'],
-                'user_name': request.data['user_name']
-            })
-            if serializer.is_valid():
-                serializer.save()
+        data = {
+            'game_code': request.data['game_code'],
+            'category': gameData['category'],
+            'user_name': request.data['user_name']
+        }
+    else:
+        if "email_address" not in request.data:
+            return JsonResponse(
+                {"error": "Enter email_address"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if "category" not in request.data:
+            return JsonResponse(
+                {"error": "Enter category"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        categories = Category.objects.filter(name=request.data['category'])
+        if len(categories) == 0:
+            return JsonResponse(
+                {"error": "Enter valid category"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if categories[0].isSubCategory:
+            parentCategoryId = categories[0].parentCategory
+            allCategories = Category.objects.filter(parentCategory=parentCategoryId)
+            ug = UserGames.objects.filter(email_address=request.data['email_address'], category__in=allCategories)
+            if len(ug) != 0:
                 return JsonResponse({
-                    "data": {
-                        'questions': questions,
-                        'usergameData': serializer.data
-                    }
-                }, status=status.HTTP_200_OK)
-            return JsonResponse({
-                "error": serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
+                    "error": "Already played game"
+                }, status=status.HTTP_400_BAD_REQUEST)
         else:
-            return JsonResponse({"error": "Game code is expired"}, status=status.HTTP_400_BAD_REQUEST)
+            ug = UserGames.objects.filter(email_address=request.data['email_address'],
+                                          category=request.data['category'])
+            if len(ug) != 0:
+                return JsonResponse({
+                    "error": "Already played game"
+                }, status=status.HTTP_400_BAD_REQUEST)
+        category = request.data['category']
+        data = {
+            'category': category,
+            'email_address': request.data['email_address']
+        }
+    try:
+        qList = Question.objects.filter(category=category).values_list('id', flat=True)
+        qRand = random.sample(list(qList), min(len(qList), 10))
+        questions = Question.objects.filter(id__in=qRand)
+        questionData = QuestionSerializer(questions, many=True).data
+        questions = []
+        for question in questionData:
+            options = []
+            for option in question['options']:
+                optionQuery = Options.objects.get(option=option)
+                optionData = OptionsSerializer(optionQuery, many=False).data
+                options.append(optionData['option'])
+            question['options'] = options
+            questions.append(question)
+        serializer = UserGamesSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return JsonResponse({
+                "data": {
+                    'questions': questions,
+                    'usergameData': serializer.data
+                }
+            }, status=status.HTTP_200_OK)
+        return JsonResponse({
+            "error": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
     except Game.DoesNotExist:
         return JsonResponse({
             "error": "Invalid game code"
@@ -458,12 +517,17 @@ def update_score_count_usergame(request):
 
 @api_view(["GET"])
 def get_leader_board_game_code(request):
-    if request.query_params.get("game_code") is None:
-        return JsonResponse(
-            {"error": "Enter game_code"}, status=status.HTTP_400_BAD_REQUEST
-        )
+    data = {}
+    if request.query_params.get("game_code") is None and request.query_params.get("category") is None:
+        return JsonResponse({
+            "error": "Enter either game code or category"
+        }, status=status.HTTP_400_BAD_REQUEST)
+    if request.query_params.get("game_code") is not None:
+        data['game_code'] = request.query_params.get("game_code")
+    if request.query_params.get("category") is not None:
+        data['category'] = request.query_params.get("category")
     try:
-        data = UserGames.objects.filter(game_code=request.query_params.get("game_code")).order_by('-score')
+        data = UserGames.objects.filter(**data).order_by('-score')
         if request.query_params.get("n") is not None:
             n = int(request.query_params.get("n"))
             data = data[:n]
@@ -783,11 +847,12 @@ def update_category(request):
         {"category": "Category name updated sucessfully"}, status=status.HTTP_201_CREATED
     )
 
+
 @api_view(['POST'])
-#@parser_classes([JSONParser])
+# @parser_classes([JSONParser])
 @authentication_classes((TokenAuthentication,))
 def opendb(request):
-    #User Authorization to ensure only user who adds questions can delete/edit them
+    # User Authorization to ensure only user who adds questions can delete/edit them
     token = request.META['HTTP_AUTHORIZATION'].split(' ')
     try:
         user = Token.objects.get(key=token[1]).user
@@ -795,17 +860,17 @@ def opendb(request):
         return JsonResponse(
             {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
         )
-    data = requests.get(url=request.data['url']).json() #takes in data from url and displays json response
-    #print(data) #testing
-    questions_to_serialize = []  #question list
-    optionsList = [] # option list  
-    for option_data in data.get('results', []): #get data starting from 'results' in JSON response (LOOP 1)
-        options = option_data.get('incorrect_answers') 
-    for option in options: #goes through option list (LOOP 2)
+    data = requests.get(url=request.data['url']).json()  # takes in data from url and displays json response
+    # print(data) #testing
+    questions_to_serialize = []  # question list
+    optionsList = []  # option list
+    for option_data in data.get('results', []):  # get data starting from 'results' in JSON response (LOOP 1)
+        options = option_data.get('incorrect_answers')
+    for option in options:  # goes through option list (LOOP 2)
         optionData = Options.objects.filter(option=option)
         if len(optionData) == 0:
-            option = {  
-                'option': option,    
+            option = {
+                'option': option,
             }
             serializer = OptionsSerializer(data=option, many=False)
             if serializer.is_valid():
@@ -813,41 +878,40 @@ def opendb(request):
         else:
             serializer = OptionsSerializer(optionData[0], many=False)
         optionsList.append(serializer.data['option'])
-    #gets correct answer and appends it to the end of the options list
+    # gets correct answer and appends it to the end of the options list
     option = {'option': option_data.get('correct_answer')}
-    serializer_ans = OptionsSerializer(data = option, many = False)
+    serializer_ans = OptionsSerializer(data=option, many=False)
     if serializer_ans.is_valid():
         serializer_ans.save()
     optionsList.append(serializer_ans.data['option'])
-    #print(optionsList)
-    #print(data)   
-     
+    # print(optionsList)
+    # print(data)
 
-    #questions
+    # questions
     for question_data in data.get('results', []):
-        #fixes HTML encoding
-        unescapedquestion = question_data.get('question') 
+        # fixes HTML encoding
+        unescapedquestion = question_data.get('question')
         escapedquestion = html.unescape(unescapedquestion)
-        formattedquestion = escapedquestion.replace("\\","")
-        #gets question data
+        formattedquestion = escapedquestion.replace("\\", "")
+        # gets question data
         QuestionData = {
             "category": question_data.get('category'),
             "type": question_data.get('type'),
             "difficulty": question_data.get('difficulty'),
-            "options": optionsList, #gets options from option list 
-            "question": formattedquestion,  #takes in formated question
-            "user": user.id, #takes in user id
-            "answer": optionsList[3], #sets the last entry as the answer from option list 
-            
+            "options": optionsList,  # gets options from option list
+            "question": formattedquestion,  # takes in formated question
+            "user": user.id,  # takes in user id
+            "answer": optionsList[3],  # sets the last entry as the answer from option list
+
         }
         questions_to_serialize.append(QuestionData)
-        #optionsList.clear()
-    serializer = QuestionSerializer(data = questions_to_serialize, many = True)
-    #print(QuestionData)
+        # optionsList.clear()
+    serializer = QuestionSerializer(data=questions_to_serialize, many=True)
+    # print(QuestionData)
     if serializer.is_valid():
         serializer.save()
-        
+
         return JsonResponse({
             "data": serializer.data
-        }, status = status.HTTP_200_OK)
-    return JsonResponse(serializer.errors, safe = False, status=status.HTTP_400_BAD_REQUEST)
+        }, status=status.HTTP_200_OK)
+    return JsonResponse(serializer.errors, safe=False, status=status.HTTP_400_BAD_REQUEST)
