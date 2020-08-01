@@ -915,3 +915,25 @@ def opendb(request):
             "data": serializer.data
         }, status=status.HTTP_200_OK)
     return JsonResponse(serializer.errors, safe=False, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@authentication_classes((TokenAuthentication,))
+def get_all_subcategory_user(request):
+    try:
+        token = request.META['HTTP_AUTHORIZATION'].split(' ')
+        try:
+            user = Token.objects.get(key=token[1]).user
+        except Token.DoesNotExist:
+            return JsonResponse(
+                {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
+            )
+        data = Category.objects.filter(user=user.id)
+        question = CategorySerializer(data, many=True).data
+        return JsonResponse({
+            "data": question
+        }, status=status.HTTP_200_OK)
+    except Exception as error:
+        return JsonResponse({
+            "error": error
+        }, status=status.HTTP_400_BAD_REQUEST)
