@@ -16,7 +16,9 @@ def add_one():
 class Category(models.Model):
     name = models.CharField(primary_key=True, max_length=100, unique=True, null=False)
     user = models.ForeignKey(User, on_delete=models.PROTECT, null=True)
-
+    isGeneral = models.BooleanField(default=False)
+    isSubCategory = models.BooleanField(default=False, null=True)
+    parentCategory = models.ForeignKey('self', on_delete=models.PROTECT, null=True)
 
 class Game(models.Model):
     game_code = models.IntegerField(primary_key=True, editable=False, default=add_one)
@@ -44,12 +46,15 @@ class Question(models.Model):
 
 class UserGames(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    game_code = models.ForeignKey(Game, on_delete=models.PROTECT)
-    category = models.ForeignKey(Category, on_delete=models.PROTECT)
-    user_name = models.CharField(max_length=100, null=False)
+    game_code = models.ForeignKey(Game,
+                                  on_delete=models.CASCADE, null=True)
+    category = models.ForeignKey(Category, on_delete=models.CASCADE)
+    user_name = models.CharField(max_length=100, null=True)
+    email_address = models.CharField(max_length=100, null=True)
     score = models.PositiveIntegerField(
         null=False, validators=[MinValueValidator(1)], default=0
     )
+
 
 
 class Newsletter(models.Model):
