@@ -41,6 +41,7 @@ class Question(models.Model):
     question = models.CharField(max_length=100000, unique=False, null=False)
     options = models.ManyToManyField("Options")
     user = models.ForeignKey(User, on_delete=models.PROTECT, null=True)
+    difficulty = models.CharField(max_length = 10000, null=True)
     answer = models.ForeignKey(
         Options, related_name="correct", on_delete=models.PROTECT
     )
