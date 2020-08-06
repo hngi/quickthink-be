@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework.authtoken.models import Token
 
-from .models import Game, Question, Options, UserGames, Category, ContactUs, Newsletter
+from .models import Game, Question, Options, UserGames, Category, ContactUs, Newsletter, UserStreaks
 
 
 class GameSerializer(serializers.ModelSerializer):
@@ -24,8 +24,16 @@ class OptionsSerializer(serializers.ModelSerializer):
 
 
 class UserGamesSerializer(serializers.ModelSerializer):
+    isGeneral = serializers.BooleanField(required=False)
+
     class Meta:
         model = UserGames
+        fields = "__all__"
+
+
+class UserStreaksSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserStreaks
         fields = "__all__"
 
 

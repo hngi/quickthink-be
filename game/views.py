@@ -1,3 +1,4 @@
+import datetime
 import html
 import random
 from rest_framework import status, generics
@@ -21,7 +22,7 @@ from rest_framework.response import Response
 from django.db import IntegrityError
 
 from quizzes.pagination.paginate import StandardResultsSetPagination
-from .models import Game, Question, UserGames, Options, Category, ContactUs, Newsletter
+from .models import Game, Question, UserGames, Options, Category, ContactUs, Newsletter, UserStreaks
 
 from .serializers import (
     GameSerializer,
@@ -34,7 +35,7 @@ from .serializers import (
     CategoryUpdateSerializer,
     NewsletterSerializer,
     ContactUsSerializer,
-)
+    UserStreaksSerializer)
 
 from rest_framework.authtoken.models import Token
 
@@ -55,6 +56,15 @@ class UserGameView(viewsets.GenericViewSet):
         except Exception as error:
             return JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=False, methods=["get"], url_path="sub-category/list/(?P<id>[^/.]+)")
+    def get_all_subcategory(self, request, id):
+        try:
+            data = Category.objects.filter(parentCategory=id)
+            question = CategorySerializer(data, many=True).data
+            return JsonResponse({"data": question}, status=status.HTTP_200_OK)
+        except Exception as error:
+            return JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     @action(detail=False, methods=["post"], url_path="play")
     def check_if_game_code_isValid(self, request):
         if "isGeneral" not in request.data:
@@ -68,20 +78,20 @@ class UserGameView(viewsets.GenericViewSet):
                 )
             game = Game.objects.get(game_code=request.data['game_code'])
             gameData = GameSerializer(game).data
-            category = gameData['category']
+            category = [gameData['category']]
             if gameData['user_name'] == request.data['user_name']:
-                return JsonResponse({"error": "Admin cannot play the game"}, status=status.HTTP_400_BAD_REQUEST)
+                return JsonResponse({"error": "User is already taken"}, status=status.HTTP_400_BAD_REQUEST)
             if not gameData['active']:
                 return JsonResponse({"error": "Game code is expired"}, status=status.HTTP_400_BAD_REQUEST)
             else:
                 ug = UserGames.objects.filter(game_code=request.data['game_code'], user_name=request.data['user_name'])
                 if len(ug) != 0:
                     return JsonResponse({
-                        "error": "Already played game"
+                        "error": "User is already taken"
                     }, status=status.HTTP_400_BAD_REQUEST)
             data = {
                 'game_code': request.data['game_code'],
-                'category': gameData['category'],
+                'category': category,
                 'user_name': request.data['user_name']
             }
         else:
@@ -93,30 +103,16 @@ class UserGameView(viewsets.GenericViewSet):
                 return JsonResponse(
                     {"error": "Enter category"}, status=status.HTTP_400_BAD_REQUEST
                 )
-            categories = Category.objects.filter(name=request.data['category'])
-            if len(categories) == 0:
-                return JsonResponse(
-                    {"error": "Enter valid category"}, status=status.HTTP_400_BAD_REQUEST
-                )
-            if categories[0].isGeneral:
-                return JsonResponse(
-                    {"error": "Select any sub category og general categroy"}, status=status.HTTP_400_BAD_REQUEST
-                )
-            if categories[0].isSubCategory:
-                parentCategoryId = categories[0].parentCategory
-                allCategories = Category.objects.filter(parentCategory=parentCategoryId)
-                ug = UserGames.objects.filter(email_address=request.data['email_address'], category__in=allCategories)
-                if len(ug) != 0:
-                    return JsonResponse({
-                        "error": "Already played game"
-                    }, status=status.HTTP_400_BAD_REQUEST)
-                else:
-                    ug = UserGames.objects.filter(email_address=request.data['email_address'],
-                                                  category=request.data['category'])
-                    if len(ug) != 0:
-                        return JsonResponse({
-                            "error": "Already played game"
-                        }, status=status.HTTP_400_BAD_REQUEST)
+            for cat in request.data['category']:
+                categories = Category.objects.filter(name=cat)
+                if len(categories) == 0:
+                    return JsonResponse(
+                        {"error": "Enter valid category"}, status=status.HTTP_400_BAD_REQUEST
+                    )
+                if categories[0].isGeneral:
+                    return JsonResponse(
+                        {"error": "Select any sub category not general category"}, status=status.HTTP_400_BAD_REQUEST
+                    )
             category = request.data['category']
             data = {
                 'category': category,
@@ -147,15 +143,15 @@ class UserGameView(viewsets.GenericViewSet):
                 }, status=status.HTTP_200_OK)
             return JsonResponse({
                 "error": serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         except Game.DoesNotExist:
             return JsonResponse({
                 "error": "Invalid game code"
-            }, status=status.HTTP_400_BAD_REQUEST)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as error:
             return
-            JsonResponse({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+            JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=["post"], url_path="valid")
     def check_if_user_can_play_game_code(self, request):
@@ -211,6 +207,13 @@ class UserGameView(viewsets.GenericViewSet):
             ug = UserGames.objects.get(id=user_game_id)
             ug.score = ug.score + 1
             ug.save()
+            if ug.email_address:
+                us = UserStreaks.objects.filter(email_address=ug.email_address)
+                if len(us) == 0:
+                    uStreaks = UserStreaks.objects.create(email_address=ug.email_address, score=1)
+                else:
+                    us[0].score = us[0].score + 1
+                    us[0].save()
             # ug = UserGames.objects.filter(id=request.data['user_game_id']).update(score=F['score'] + 1)
             ugSerializer = UserGamesSerializer(ug, many=False).data
             return JsonResponse({"data": ugSerializer}, status=status.HTTP_200_OK)
@@ -231,6 +234,13 @@ class UserGameView(viewsets.GenericViewSet):
             ug = UserGames.objects.get(id=kwargs["user_game_id"])
             ug.score = ug.score + int(kwargs["no_answers_crct"])
             ug.save()
+            if ug.email_address:
+                us = UserStreaks.objects.filter(email_address=ug.email_address)
+                if len(us) == 0:
+                    uStreaks = UserStreaks.objects.create(email_address=ug.email_address, score=1)
+                else:
+                    us[0].score = us[0].score + 1
+                    us[0].save()
             # ug = UserGames.objects.filter(id=request.data['user_game_id']).update(score=F['score'] + 1)
             ugSerializer = UserGamesSerializer(ug, many=False).data
             return JsonResponse({"data": ugSerializer}, status=status.HTTP_200_OK)
@@ -241,7 +251,61 @@ class UserGameView(viewsets.GenericViewSet):
         except Exception as error:
             return JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @action(detail=False, methods=["post"], url_path='leaderboard/inf/(?P<n>[^/.]+)')
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="end/(?P<user_game_id>[^/.]+)",
+    )
+    def end_user_game(self, request, user_game_id):
+        ug = UserGames.objects.filter(id=user_game_id)
+        if len(ug) == 0:
+            return JsonResponse({"errors": "Enter valid user game id"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            timediff = datetime.datetime.now() - datetime.datetime(year=ug[0].created_at.year,
+                                                                   month=ug[0].created_at.month,
+                                                                   day=ug[0].created_at.day,
+                                                                   hour=ug[0].created_at.hour,
+                                                                   minute=ug[0].created_at.minute,
+                                                                   second=ug[0].created_at.second)
+
+            ug[0].time = timediff.total_seconds()
+            print(timediff.total_seconds())
+            ug[0].save()
+            if ug[0].email_address:
+                userStreak = UserStreaks.objects.filter(email_address=ug[0].email_address)
+                if len(userStreak) == 0:
+                    userStreak = UserStreaks.objects.create(email_address=ug[0].email_address,
+                                                            streaks=1, last_played=datetime.date.today())
+                else:
+                    # if the last played is not today
+                    if userStreak[0].last_played:
+                        last_played = datetime.date(year=userStreak[0].last_played.year,
+                                                    month=userStreak[0].last_played.month,
+                                                    day=userStreak[0].last_played.day)
+                        if last_played != datetime.date.today():
+                            timediff = datetime.date.today() - last_played
+                            # increment streak by one
+                            if timediff.days == 1:
+                                userStreak[0].streaks = userStreak[0].streak + 1
+                            else:
+                                userStreak[0].streaks = 1
+                    else:
+                        userStreak[0].streaks = 1
+                    userStreak[0].last_played = datetime.date.today()
+                    userStreak[0].save()
+            usSerializer = UserGamesSerializer(ug[0])
+            return JsonResponse({"data": usSerializer.data}, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["get"], url_path='streaks/(?P<email_address>[\w.%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,4})')
+    def get_streaks_count(self, request, email_address=None):
+        us = UserStreaks.objects.filter(email_address=email_address)
+        if len(us) == 0:
+            return JsonResponse({"errors": "This user has not played the game"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            usSerializer = UserStreaksSerializer(us[0])
+            return JsonResponse({"data": usSerializer.data}, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["get"], url_path='leaderboard/inf/(?P<n>[^/.]+)')
     def get_leader_board(self, request, n=None):
         try:
             if n is not None:
@@ -254,7 +318,7 @@ class UserGameView(viewsets.GenericViewSet):
             if "score" in request.data:
                 options['score__lte'] = request.data['score']
             data = UserGames.objects.filter(**options
-                                            ).order_by("-score", "id")[:n]
+                                            ).order_by("-score", "time", "id")[:n]
 
             userGames = UserGamesSerializer(data, many=True).data
             return JsonResponse({"data": userGames}, status=status.HTTP_200_OK)
@@ -263,12 +327,12 @@ class UserGameView(viewsets.GenericViewSet):
 
     @action(
         detail=False,
-        methods=["post"],
+        methods=["get"],
         url_path="leaderboard/game/(?P<game_code>[^/.]+)/(?P<n>[^/.]+)",
     )
     def get_leader_board_game_code(self, request, game_code, n):
         try:
-            data = UserGames.objects.filter(game_code=game_code).order_by("-score")
+            data = UserGames.objects.filter(game_code=game_code).order_by("-score", "time", "id")
             if n is not None:
                 n = int(n)
                 data = data[:n]
@@ -279,12 +343,12 @@ class UserGameView(viewsets.GenericViewSet):
 
     @action(
         detail=False,
-        methods=["post"],
+        methods=["get"],
         url_path="leaderboard/subcategory/(?P<subcategory>[^/.]+)/(?P<n>[^/.]+)",
     )
     def get_leader_board_game_sub(self, request, subcategory, n):
         try:
-            data = UserGames.objects.filter(category=subcategory).order_by("-score")
+            data = UserGames.objects.filter(category__contains=subcategory).order_by("-score", "time", "id")
             if n is not None:
                 n = int(n)
                 data = data[:n]
@@ -295,7 +359,7 @@ class UserGameView(viewsets.GenericViewSet):
 
     @action(
         detail=False,
-        methods=["post"],
+        methods=["get"],
         url_path="leaderboard/general-all/(?P<category>[^/.]+)/(?P<n>[^/.]+)",
     )
     def get_leader_board_game_code_all(self, request, category, n):
@@ -305,11 +369,27 @@ class UserGameView(viewsets.GenericViewSet):
                 return JsonResponse({"error": "enter valid category"}, status=status.HTTP_400_BAD_REQUEST)
             else:
                 categories = Category.objects.filter(parentCategory=cat[0])
-            data = UserGames.objects.filter(category__in=categories).order_by("-score")
+            data = UserGames.objects.filter(category__contains=categories).order_by("-score", "time", "id")
             if n is not None:
                 n = int(n)
                 data = data[:n]
             userGames = UserGamesSerializer(data, many=True).data
+            return JsonResponse({"data": userGames}, status=status.HTTP_200_OK)
+        except Exception as error:
+            return JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="leaderboard/general/(?P<n>[^/.]+)",
+    )
+    def get_leader_board_general_all(self, request, n):
+        try:
+            data = UserStreaks.objects.all().order_by("-score")
+            if n is not None:
+                n = int(n)
+                data = data[:n]
+            userGames = UserStreaksSerializer(data, many=True).data
             return JsonResponse({"data": userGames}, status=status.HTTP_200_OK)
         except Exception as error:
             return JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -1251,6 +1331,6 @@ class ContactUsView(viewsets.GenericViewSet):
 
 class UserGameLeaderBoardView(generics.ListAPIView):
     permission_classes = (AllowAny,)
-    queryset = UserGames.objects.all().order_by("-score", "id")
+    queryset = UserGames.objects.all().order_by("-score", "time", "id")
     serializer_class = UserGamesSerializer
     pagination_class = StandardResultsSetPagination
