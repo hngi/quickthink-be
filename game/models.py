@@ -35,13 +35,24 @@ class Options(models.Model):
     )
 
 
+DIFFICULTY_CHOICES = (
+    ("easy", "easy"),
+    ("difficult", "difficult"),
+    ("medium", "medium")
+)
+
+
 class Question(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     category = models.ForeignKey(Category, on_delete=models.PROTECT)
     question = models.CharField(max_length=100000, unique=False, null=False)
     options = models.ManyToManyField("Options")
     user = models.ForeignKey(User, on_delete=models.PROTECT, null=True)
-    difficulty = models.CharField(max_length = 10000, null=True)
+    difficulty = models.CharField(
+        max_length=20,
+        choices=DIFFICULTY_CHOICES,
+        default='easy'
+    )
     answer = models.ForeignKey(
         Options, related_name="correct", on_delete=models.PROTECT
     )

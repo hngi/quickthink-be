@@ -296,7 +296,8 @@ class UserGameView(viewsets.GenericViewSet):
             usSerializer = UserGamesSerializer(ug[0])
             return JsonResponse({"data": usSerializer.data}, status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=["get"], url_path='streaks/(?P<email_address>[\w.%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,4})')
+    @action(detail=False, methods=["get"],
+            url_path='streaks/(?P<email_address>[\w.%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,4})')
     def get_streaks_count(self, request, email_address=None):
         us = UserStreaks.objects.filter(email_address=email_address)
         if len(us) == 0:
@@ -707,18 +708,17 @@ class QuestionView(viewsets.GenericViewSet):
             )
         # Exception handling below
         question = request.data.get("Question")
-        #cats = Category.objects.filter(name=question["category"])
-        #if len(cats) == 0:
-        #    return JsonResponse(
-        #        {"error": "Enter valid category"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        #    )
+        cats = Category.objects.filter(name=question["category"])
+        if len(cats) == 0:
+            return JsonResponse(
+                {"error": "Enter valid category"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
         if "answer" not in question:
             return JsonResponse(
-
                 {"error": "There is no answer "},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-
             )
+
         try:
             index = question["options"].index(question["answer"])
         except Exception as error:
@@ -747,9 +747,9 @@ class QuestionView(viewsets.GenericViewSet):
             else:
                 serializer = OptionsSerializer(optionData[0], many=False)
             optionsList.append(serializer.data["option"])
-        question = {
+
+        questions = {
             "question": question["question"],  # takes quesion from user
-            "difficulty": question["difficulty"],
             "category": category[0][
                 "name"
             ],  # takes category from existing category (create category endpoint)
@@ -759,7 +759,9 @@ class QuestionView(viewsets.GenericViewSet):
                 index
             ],  # takes the correct answer from the optionsList
         }
-        serializer = QuestionSerializer(data=question)
+        if "difficulty" in question:
+            questions['difficulty'] = question["difficulty"]
+        serializer = QuestionSerializer(data=questions)
         if serializer.is_valid():
             serializer.save()
             return JsonResponse({"data": serializer.data}, status=status.HTTP_200_OK)
