@@ -22,17 +22,17 @@ schema_view = get_schema_view(
 )
 
 
-def custom404(request, exception=None):
-    return JsonResponse({
-        'error': 'The resource was not found'
-    }, status=status.HTTP_404_NOT_FOUND)
+# def custom404(request, exception=None):
+#     return JsonResponse({
+#         'error': 'The resource was not found'
+#     }, status=status.HTTP_404_NOT_FOUND)
 
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('game.urls')),
     path('', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
-    url(r'^.*/$', custom404, name='error404'),
+    # url(r'^.*/$', custom404, name='error404'),
     path('jet_api/', include('jet_django.urls')),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
 ]
