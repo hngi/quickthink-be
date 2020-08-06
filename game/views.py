@@ -707,11 +707,11 @@ class QuestionView(viewsets.GenericViewSet):
             )
         # Exception handling below
         question = request.data.get("Question")
-        cats = Category.objects.filter(name=question["category"])
-        if len(cats) == 0:
-            return JsonResponse(
-                {"error": "Enter valid category"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        #cats = Category.objects.filter(name=question["category"])
+        #if len(cats) == 0:
+        #    return JsonResponse(
+        #        {"error": "Enter valid category"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        #    )
         if "answer" not in question:
             return JsonResponse(
 
@@ -749,6 +749,7 @@ class QuestionView(viewsets.GenericViewSet):
             optionsList.append(serializer.data["option"])
         question = {
             "question": question["question"],  # takes quesion from user
+            "difficulty": question["difficulty"],
             "category": category[0][
                 "name"
             ],  # takes category from existing category (create category endpoint)
