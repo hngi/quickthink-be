@@ -544,7 +544,7 @@ class UserAPIs(viewsets.GenericViewSet):
                           Forgot password
                           User needs to enter email,password
                """
-        if "email" not in request.data:
+        if "email_address" not in request.data:
             return JsonResponse(
                 {"error": "Enter email"}, status=status.HTTP_400_BAD_REQUEST
             )

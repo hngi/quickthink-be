@@ -1,4 +1,3 @@
-  
 import smtplib
 
 
@@ -26,13 +25,13 @@ class Gmail(object):
             self.send_message(subject, body, toEmail)
 
     def smtp_connect(self, fromEmail, password):
-        self.fromEmail = fromEmail
-        self.password = password
+        self.fromEmail = "hngquickthink@gmail.com"
+        self.password = "Hngquickthink12@"
         self.server = 'smtp.gmail.com'
         self.port = 587
         session = smtplib.SMTP(self.server, self.port)
         session.ehlo()
         session.starttls()
         session.ehlo
-        session.login(self.fromEmail, self.password)
+        session.login(self.fromEmail,self.password)
         self.session = session
