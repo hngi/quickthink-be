@@ -6,6 +6,7 @@ import requests
 from django.contrib.auth import authenticate, login, get_user_model, logout
 from django.contrib.auth.models import User
 from django.http import JsonResponse, HttpResponse
+from services.email_verification import Gmail
 
 # Create your views here.
 from rest_framework import viewsets
@@ -510,6 +511,28 @@ class UserAPIs(viewsets.GenericViewSet):
                 {"error": "Invalid credentials"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    def otpgen():
+    otp = ""
+    for i in range(4):
+        otp += str(r.randint(1, 9))
+    return otp
+
+
+    def emailOtpMessage(otp):
+        html = """
+                <html>
+                    <body>
+                        <p>Hello,<br><br>
+                        Your reset passowrd OTP is ready<br><br>
+                        Please verify your OTP. Your OTP number is below
+                        <br><br>
+                        <b>""" + otp + """</b>
+                        </p>
+                    </body>
+                </html>
+            """
+        return html
+
     @action(detail=False, methods=["put"])
     def forgot_password(self, request):
         """
@@ -520,10 +543,17 @@ class UserAPIs(viewsets.GenericViewSet):
             return JsonResponse(
                 {"error": "Enter email"}, status=status.HTTP_400_BAD_REQUEST
             )
-        if "password" not in request.data:
-            return JsonResponse(
-                {"error": "Enter password"}, status=status.HTTP_400_BAD_REQUEST
-            )
+        else:
+            otp = otpgen()
+            gm=Gmail(settings.email_address,settings.email_app_password)
+            gm.send_message("Email OTP Verification - Quick Think", emailOtpMessage(otp),request.data['email_address'])
+            return JsonResponse({
+                "data": {
+                    "otp": otp,
+                    "email_address": request.data['email_address']
+                },
+                "message": "Sent email with otp successfully"
+            }, status=status.HTTP_200_OK)
         try:
             # checking if the user exists with the given email id
             user = User.objects.get(email=request.data["email"])
@@ -843,7 +873,7 @@ class QuestionView(viewsets.GenericViewSet):
     @action(detail=False, methods=["GET"], url_path="list")
     def get_questions(self, request):
         """
-        Gets ALL the questions in the database displayed by all users.
+        Gets ALL the questions in the database created by all users.
 
         """
         token = request.META["HTTP_AUTHORIZATION"].split(" ")
