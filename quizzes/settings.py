@@ -159,3 +159,7 @@ SWAGGER_SETTINGS = {
 #Jet admin configuration 
 JET_PROJECT = 'quickthink_2'
 JET_TOKEN = '23ec6d60-ee37-4efd-9275-2caa7aec8b5e'
+
+#Email config for OTP
+email_address = 'hngquickthink@gmail.com'
+email_app_password = 'Hngquickthink12@'
