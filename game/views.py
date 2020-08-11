@@ -7,6 +7,7 @@ from django.contrib.auth import authenticate, login, get_user_model, logout
 from django.contrib.auth.models import User
 from django.http import JsonResponse, HttpResponse
 from services.email_verification import Gmail
+from quizzes import settings
 
 # Create your views here.
 from rest_framework import viewsets
@@ -19,6 +20,7 @@ from rest_framework.decorators import (
 )
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
+import random as r
 
 from django.db import IntegrityError
 
@@ -39,6 +41,30 @@ from .serializers import (
     UserStreaksSerializer)
 
 from rest_framework.authtoken.models import Token
+
+
+
+def otpgen():
+    otp = ""
+    for i in range(4):
+        otp += str(r.randint(1, 9))
+    return otp
+
+
+def emailOtpMessage(otp):
+    html = """
+            <html>
+                <body>
+                    <p>Hello,<br><br>
+                    Your reset passowrd OTP is ready<br><br>
+                    Please verify your OTP. Your OTP number is below
+                    <br><br>
+                    <b>""" + otp + """</b>
+                    </p>
+                </body>
+            </html>
+        """
+    return html
 
 
 class UserGameView(viewsets.GenericViewSet):
@@ -511,27 +537,6 @@ class UserAPIs(viewsets.GenericViewSet):
                 {"error": "Invalid credentials"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    def otpgen():
-    otp = ""
-    for i in range(4):
-        otp += str(r.randint(1, 9))
-    return otp
-
-
-    def emailOtpMessage(otp):
-        html = """
-                <html>
-                    <body>
-                        <p>Hello,<br><br>
-                        Your reset passowrd OTP is ready<br><br>
-                        Please verify your OTP. Your OTP number is below
-                        <br><br>
-                        <b>""" + otp + """</b>
-                        </p>
-                    </body>
-                </html>
-            """
-        return html
 
     @action(detail=False, methods=["put"])
     def forgot_password(self, request):
