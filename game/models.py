@@ -22,13 +22,6 @@ class Category(models.Model):
     parentCategory = models.ForeignKey('self', on_delete=models.PROTECT, null=True)
 
 
-class Game(models.Model):
-    game_code = models.IntegerField(primary_key=True, editable=False, default=add_one)
-    category = models.ForeignKey(Category, on_delete=models.PROTECT)
-    user_name = models.CharField(max_length=100, null=False)
-    active = models.BooleanField(default=True)
-
-
 class Options(models.Model):
     option = models.CharField(
         primary_key=True, max_length=100000, unique=True, null=False
@@ -58,6 +51,16 @@ class Question(models.Model):
     )
 
 
+class Game(models.Model):
+    game_code = models.IntegerField(primary_key=True, editable=False, default=add_one)
+    category = models.ForeignKey(Category, on_delete=models.PROTECT)
+    user_name = models.CharField(max_length=100, null=False)
+    questions = models.ManyToManyField(Question, null=True)
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
 class UserGames(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     game_code = models.ForeignKey(Game,
@@ -68,6 +71,7 @@ class UserGames(models.Model):
     score = models.PositiveIntegerField(
         null=False, validators=[MinValueValidator(1)], default=0
     )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     time = models.CharField(max_length=100, null=True)  # inseconds

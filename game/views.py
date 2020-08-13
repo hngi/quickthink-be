@@ -6,8 +6,6 @@ import requests
 from django.contrib.auth import authenticate, login, get_user_model, logout
 from django.contrib.auth.models import User
 from django.http import JsonResponse, HttpResponse
-from services.email_verification import Gmail
-from quizzes import settings
 
 # Create your views here.
 from rest_framework import viewsets
@@ -103,11 +101,22 @@ class UserGameView(viewsets.GenericViewSet):
                 return JsonResponse(
                     {"error": "Enter user_name"}, status=status.HTTP_400_BAD_REQUEST
                 )
+            ug = UserGames.objects.filter(game_code=request.data['game_code'])
             game = Game.objects.get(game_code=request.data['game_code'])
             gameData = GameSerializer(game).data
+            if len(ug) == 0:
+                timediff = datetime.datetime.now() - datetime.datetime(year=game.created_at.year,
+                                                                       month=game.created_at.month,
+                                                                       day=game.created_at.day,
+                                                                       hour=game.created_at.hour,
+                                                                       minute=game.created_at.minute,
+                                                                       second=game.created_at.second)
+                seconds = timediff.total_seconds()
+                if seconds == 5 * 60:
+                    game.active = False
+                    game.save()
+                    return JsonResponse({"error": "Game code is expired"}, status=status.HTTP_400_BAD_REQUEST)
             category = [gameData['category']]
-            if gameData['user_name'] == request.data['user_name']:
-                return JsonResponse({"error": "User is already taken"}, status=status.HTTP_400_BAD_REQUEST)
             if not gameData['active']:
                 return JsonResponse({"error": "Game code is expired"}, status=status.HTTP_400_BAD_REQUEST)
             else:
@@ -121,6 +130,7 @@ class UserGameView(viewsets.GenericViewSet):
                 'category': category,
                 'user_name': request.data['user_name']
             }
+            questions = Question.objects.filter(id__in=gameData['questions'])
         else:
             if "email_address" not in request.data:
                 return JsonResponse(
@@ -145,10 +155,10 @@ class UserGameView(viewsets.GenericViewSet):
                 'category': category,
                 'email_address': request.data['email_address']
             }
-        try:
             qList = Question.objects.filter(category=category).values_list('id', flat=True)
             qRand = random.sample(list(qList), min(len(qList), 10))
             questions = Question.objects.filter(id__in=qRand)
+        try:
             questionData = QuestionSerializer(questions, many=True).data
             questions = []
             for question in questionData:
@@ -193,11 +203,6 @@ class UserGameView(viewsets.GenericViewSet):
         try:
             game = Game.objects.get(game_code=request.data["game_code"])
             gameData = GameSerializer(game).data
-            if gameData["user_name"] == request.data["user_name"]:
-                return JsonResponse(
-                    {"error": "Game creator cannot play the game"},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
             if gameData["active"]:
                 ug = UserGames.objects.filter(
                     game_code=request.data["game_code"],
@@ -320,6 +325,11 @@ class UserGameView(viewsets.GenericViewSet):
                         userStreak[0].streaks = 1
                     userStreak[0].last_played = datetime.date.today()
                     userStreak[0].save()
+            else:
+                game = Game.objects.filter(game_code=ug[0].game_code)
+                if game[0].active:
+                    game[0].active = False
+                    game[0].save()
             usSerializer = UserGamesSerializer(ug[0])
             return JsonResponse({"data": usSerializer.data}, status=status.HTTP_200_OK)
 
@@ -537,28 +547,20 @@ class UserAPIs(viewsets.GenericViewSet):
                 {"error": "Invalid credentials"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-
     @action(detail=False, methods=["put"])
     def forgot_password(self, request):
         """
                           Forgot password
                           User needs to enter email,password
                """
-        if "email_address" not in request.data:
+        if "email" not in request.data:
             return JsonResponse(
                 {"error": "Enter email"}, status=status.HTTP_400_BAD_REQUEST
             )
-        else:
-            otp = otpgen()
-            gm=Gmail(settings.email_address,settings.email_app_password)
-            gm.send_message("Email OTP Verification - Quick Think", emailOtpMessage(otp),request.data['email_address'])
-            return JsonResponse({
-                "data": {
-                    "otp": otp,
-                    "email_address": request.data['email_address']
-                },
-                "message": "Sent email with otp successfully"
-            }, status=status.HTTP_200_OK)
+        if "password" not in request.data:
+            return JsonResponse(
+                {"error": "Enter password"}, status=status.HTTP_400_BAD_REQUEST
+            )
         try:
             # checking if the user exists with the given email id
             user = User.objects.get(email=request.data["email"])
@@ -878,7 +880,7 @@ class QuestionView(viewsets.GenericViewSet):
     @action(detail=False, methods=["GET"], url_path="list")
     def get_questions(self, request):
         """
-        Gets ALL the questions in the database created by all users.
+        Gets ALL the questions in the database displayed by all users.
 
         """
         token = request.META["HTTP_AUTHORIZATION"].split(" ")
@@ -1030,17 +1032,20 @@ class GameCode(viewsets.GenericViewSet):
             )
         # checking if the category exists
         category = Category.objects.filter(name=request.data["category"])
-        print(category)
+
         if len(category) == 0:
             return JsonResponse(
                 {"error": "Category does not exist"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
+        qList = Question.objects.filter(category__in=category).values_list('id', flat=True)
+        qRand = random.sample(list(qList), min(len(qList), 10))
         data = {
             "category": request.data["category"],
             "user_name": request.data["user_name"],
             "active": True,
+            'questions': qRand
         }
+        print(data)
         # creating game code given a username and category
         game_serializer = GameSerializer(data=data)
 
