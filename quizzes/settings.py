@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     # Third Party apps
+    'corsheaders',
     'rest_framework',
     'rest_framework.authtoken',
     'drf_yasg',
@@ -46,14 +47,16 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
+
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'quizzes.middleware.cors.CorsMiddleware'
+    'corsheaders.middleware.CorsMiddleware',
+    # 'quizzes.middleware.cors.CorsMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.security.SecurityMiddleware',
 ]
 
 ROOT_URLCONF = 'quizzes.urls'
@@ -132,7 +135,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/3.0/howto/static-files/
 
 STATIC_URL = '/static/'
-# STATIC_ROOT = '/home/mohammedadel/brainteaser-backend/static' deployment
+STATIC_ROOT = '/home/brainteaserdev/quickthink-be/static'
 
 
 REST_FRAMEWORK = {
@@ -156,10 +159,13 @@ SWAGGER_SETTINGS = {
 }
 
 
-#Jet admin configuration 
+#Jet admin configuration
 JET_PROJECT = 'quickthink_2'
 JET_TOKEN = '23ec6d60-ee37-4efd-9275-2caa7aec8b5e'
 
 #Email config for OTP
 email_address = 'hngquickthink@gmail.com'
 email_app_password = 'Hngquickthink12@'
+
+CORS_ORIGIN_ALLOW_ALL = True
+
