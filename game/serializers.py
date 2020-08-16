@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework.authtoken.models import Token
 
-from .models import Game, Question, Options, UserGames, Category, ContactUs, Newsletter, UserStreaks
+from .models import Game, Question, Options, UserGames, Category, ContactUs, Newsletter, UserStreaks, otpauth
 
 
 class GameSerializer(serializers.ModelSerializer):
@@ -82,3 +82,10 @@ class ContactUsSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContactUs
         fields = "__all__"
+
+
+class otpauthSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = otpauth
+        fields = "__all__"
+      
