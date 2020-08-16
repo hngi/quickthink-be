@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator
 from django.db import models
 from datetime import datetime
-
+#from django.contrib.auth.models import AbstractUser
 
 # Create your models here.
 def add_one():
@@ -12,6 +12,18 @@ def add_one():
     if not largest:
         return 1000
     return largest.game_code + 1
+
+class otpauth(models.Model):
+    #user = models.ForeignKey(User, on_delete=models.PROTECT, null=True)
+    otp = models.CharField(max_length=9, blank=True, null=True)
+    isvalid_otp = models.BooleanField(default=False)
+    email_address = models.CharField(max_length=254, blank=True, null=True)
+    def __str__(self):
+        return str(self.email_address) + ' is sent ' + str(self.otp)
+
+#class User(AbstractUser):
+#    otp = models.CharField(max_length=9, blank=True, null=True)
+#    isvalid_otp = models.BooleanField(default=False)
 
 
 class Category(models.Model):

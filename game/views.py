@@ -6,6 +6,8 @@ import requests
 from django.contrib.auth import authenticate, login, get_user_model, logout
 from django.contrib.auth.models import User
 from django.http import JsonResponse, HttpResponse
+from services.email_verification import Gmail
+from quizzes import settings
 
 # Create your views here.
 from rest_framework import viewsets
@@ -23,7 +25,7 @@ import random as r
 from django.db import IntegrityError
 
 from quizzes.pagination.paginate import StandardResultsSetPagination
-from .models import Game, Question, UserGames, Options, Category, ContactUs, Newsletter, UserStreaks
+from .models import Game, Question, UserGames, Options, Category, ContactUs, Newsletter, UserStreaks, otpauth
 
 from .serializers import (
     GameSerializer,
@@ -36,20 +38,22 @@ from .serializers import (
     CategoryUpdateSerializer,
     NewsletterSerializer,
     ContactUsSerializer,
-    UserStreaksSerializer)
+    UserStreaksSerializer,
+    otpauthSerializer)
 
 from rest_framework.authtoken.models import Token
 
 
-
-def otpgen():
-    otp = ""
+    
+def otpgen(email_address):
+    key = ""
     for i in range(4):
-        otp += str(r.randint(1, 9))
-    return otp
+        key += str(r.randint(1, 9))
+    return key
+    print(key)
 
 
-def emailOtpMessage(otp):
+def emailOtpMessage(key):
     html = """
             <html>
                 <body>
@@ -57,7 +61,7 @@ def emailOtpMessage(otp):
                     Your reset passowrd OTP is ready<br><br>
                     Please verify your OTP. Your OTP number is below
                     <br><br>
-                    <b>""" + otp + """</b>
+                    <b>""" +str(key)+ """</b>
                     </p>
                 </body>
             </html>
@@ -547,37 +551,79 @@ class UserAPIs(viewsets.GenericViewSet):
                 {"error": "Invalid credentials"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    @action(detail=False, methods=["put"])
+    @action(detail=False, methods=["POST"])
     def forgot_password(self, request):
         """
                           Forgot password
                           User needs to enter email,password
                """
-        if "email" not in request.data:
-            return JsonResponse(
-                {"error": "Enter email"}, status=status.HTTP_400_BAD_REQUEST
-            )
-        if "password" not in request.data:
-            return JsonResponse(
-                {"error": "Enter password"}, status=status.HTTP_400_BAD_REQUEST
-            )
-        try:
-            # checking if the user exists with the given email id
-            user = User.objects.get(email=request.data["email"])
-            # setting the password
-            user.set_password(request.data["password"])
-            user.save()
-            return JsonResponse(
-                {"data": UserSerializer(user).data}, status=status.HTTP_200_OK
-            )
-        except User.DoesNotExist:
+              
+        email_address = request.data.get('email')
+        if email_address:
+            email  = str(email_address)
+            user = User.objects.get(email_address = email)
+            if user.DoesNotExist():
+                return Response({
+                    'status' : False,
+                    'detail' : 'User doesnt exists.'
+                    })
+        
+        else:
+            key = otpgen(email_address)
+            gm=Gmail(settings.email_address,settings.email_app_password)
+            gm.send_message("Email OTP Verification - Quick Think", emailOtpMessage(key),request.data['email_address'])
+            data = {
+                "otp": key,
+                "email_address": request.data['email_address'],
+                #"user": self.request.user
+
+            }
+            serializer = otpauthSerializer(data = data)
+            
+            if serializer.is_valid():
+                serializer.save()
+                print(data)
+                return JsonResponse({"data": serializer.data}, status=status.HTTP_200_OK)
+            else:
+                return JsonResponse(serializer.errors, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+            return JsonResponse({
+                "data": {
+                    "otp": key,
+                    "email_address": request.data['email_address']
+                },
+                "message": "Sent email with otp successfully"
+            }, status=status.HTTP_200_OK)
+            
+            #add = otpauth.objects.create(otp=key, email_address = email_address)
+            #add.save()
+            print(key)
+            #serializer = otpauthSerializer(data=data)
+            #serializer.save(owner = request.user)
+
+        if User.DoesNotExist:
             # if the user does not exist
             return JsonResponse(
                 {"error": "Invalid email address"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-        except Exception as error:
-            return JsonResponse({"error": error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+        
+    @action(detail=False, methods= ["PUT"])
+    def isotpvalid(self, request):
+        otp_sent = request.data.get('otp')
+        email = request.data.get('email')
+        old = otpauth.objects.get(email_address = email)
+        print(old)
+        #old = old.first()
+        #otp = old.otp
+        if str(otp_sent) == str(old.otp):
+            old.isvalid_otp = True
+            old.save()
+            return JsonResponse({
+                "status" : "true",
+                'message' : "otp verified successfully"
+            })
+     
 
 class UserDetailsApi(viewsets.GenericViewSet):
     """
